@@ -12,7 +12,7 @@
 
 #####################################################################################
 # 01_load.R
-# script to collate elk (meta)data for sightability methods, covariates
+# script to load elk collar and EPU data
 # written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 17-Feb-2021
 #####################################################################################
 
@@ -21,18 +21,18 @@ tz = Sys.timezone() # specify timezone in BC
 
 # overall process:
 #- Upload collar data
-# Upload Animal metadata and collar metadata (if applicable)
-#-
+#- Upload Animal metadata and collar metadata (if applicable)
+#- Upload EPU metadata (from SBOT and inventory files)
 
 # Load Packages
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
 #####################################################################################
-###--- Import files
+###--- Import spatial files
 # Set study region as BC / SC
 bc <- bc_bound()
 bc_latlon <- st_transform(bc, crs=4326)
@@ -42,13 +42,49 @@ SC <- nr_districts() %>% filter(ORG_UNIT %in% c("DCK", "DSQ", "DSC"))
 SC_latlon <- st_transform(SC, crs=4326)
 st_bbox(SC_latlon)
 
+# Import BEC, Ecoprovinces, Ecoregions and Ecosections
+BEC.SC <- bec() %>% st_crop(st_bbox(SC))
+ECOprov.SC <- ecoprovinces() %>% st_crop(st_bbox(SC))
+ECOreg.SC <- ecoregions() %>% st_crop(st_bbox(SC))
+ECOsec.SC <- ecosections() %>% st_crop(st_bbox(SC))
+
+ggplot() +
+  geom_sf(data = ECOsec.SC, aes(fill=ECOSECTION_CODE)) +
+  geom_sf(data = SC,  color = "black", fill = NA, lwd=1.5) +
+  coord_sf(datum = NA) +
+  theme_minimal()
+
+
+# # Import slope, elevation, habitat data for prioirty area
+# # will have to wait until EPUs are decided, otherwise too big to download
+# bcdc_search("aspect", res_format = "wms")
+#
+# bcdc_tidy_resources("57b8ba13-cd01-43a5-9910-bc18375426d0") %>%
+#   filter(bcdata_available == "TRUE") %>% select(name, id)
+#
+# bcdc_describe_feature("57b8ba13-cd01-43a5-9910-bc18375426d0")
+# bcdc_query_geodata("0a83163b-a62f-4ce6-a9a1-21c228b0c0a3") %>% filter(BUSINESS_AREA_PROJECT_ID==4678)
+#
+
+#- EPU polygon shapefile
+GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
+EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
+
+ggplot(EPU_poly) +
+  geom_sf(aes(fill = OBJECTID)) +
+  geom_sf_label(aes(label = EPU_Unit_N), cex=2) +
+  theme(legend.position = "none")
+
+
+#####################################################################################
+###--- Import collar telemetry data
 # Read collar position data csv, selecting most recent collar data download
 # assumes all collar data downloaded each time, will need to modify if only downloading most recent data
 collar_pos_path <-"C:/Users/JBURGAR/R/Analysis/Collar_data/"
 tmpshot <- fileSnapshot(collar_pos_path)
 recent_file <- rownames(tmpshot$info[which.max(tmpshot$info$mtime),])
 
-# import collar data with valid fixes, with locations inside BC, selecting only pertinent columns, transforming date field into R formats
+# Import collar data with valid fixes, with locations inside BC, selecting only pertinent columns, transforming date field into R formats
 collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE, sep=";") %>%
   type.convert() %>%
   filter(Fix.Type=="3D Validated") %>%
@@ -57,59 +93,23 @@ collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE,
   select(Collar.ID, UTC.Date, Latitude..deg., Longitude..deg., Mortality.Status) %>%
   mutate(Date.Time.UTC = ymd_hms(UTC.Date, truncated = 1, tz="UTC"))
 
-collar_pos$Date.Time.PST <- with_tz(collar_pos$Date.Time.UTC, tz)
-collar_pos$Time.PST <- times(strftime(collar_pos$Date.Time.PST,"%H:%M:%S", tz))
 
-collar_pos <- collar_pos %>% mutate(Year = year(Date.Time.PST), Month = month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
+###--- Import collar metadata
+anml.full <- read.csv("Cpt_Cllr_Combined.csv", # point to appropriate metadata file
+                      header = TRUE, stringsAsFactors = TRUE, na.strings=c("", "NA"), row.names=1)
 
+glimpse(anml.full) # view data
+head(anml.full)
 
-# check collar data loaded properly
-collar.dates <- collar_pos %>% group_by(Collar.ID) %>% summarise(min.Date = min(Date.Time.PST), max.Date = max(Date.Time.PST))
-min(collar.dates$min.Date); max(collar.dates$min.Date)
-# [1] "2017-01-25 06:00:37 PST"
-# [1] "2020-02-25 06:32:36 PST"
-
-min(collar.dates$max.Date); max(collar.dates$max.Date)
-# [1] "2018-11-07 06:13:14 PST"
-# [1] "2021-02-19 04:02:39 PST"
-
-# will still need to clean collar data to make sure not included dates when collaring individuals
-# speak to bios about # days post collaring to start including animals in analysis
-collar_annual_fixes <- collar_pos %>% group_by(Collar.ID, Year) %>% summarise(Counts = sum(Count))
-ggplot(collar_annual_fixes, aes(fill=Collar.ID, y=Counts, x=Collar.ID))+
-  geom_bar(position="dodge", stat="identity")+
-  facet_wrap(~Year)
-
-
-ggplot(data = collar_annual_fixes, aes(x = reorder(Collar.ID, -Counts), y = Counts, fill= Collar.ID)) +
-  geom_bar(stat = "identity") +
-   theme_classic() + ylab("Number of Annual Fixes per Collar") +
-  theme(legend.position="none") +
-  theme(axis.text.x = element_blank()) +
-  theme(axis.title.y = element_text(size = 14)) + theme(axis.title.x = element_blank())+
-  facet_wrap(~Year)
-
-# check data loaded
-glimpse(collar_pos)
-collar_pos %>% count(Collar.ID) # 65 collars
-
-names(collar_pos)
-
-
-
-
-
-
+#####################################################################################
+###--- Import EPU metadata (from SBOT and inventory files)
 # Read deployment data csv for station covariates
 EPU_SBOT <- read.csv("data/Elk_SBOT_data.csv", header=T, colClasses=c("character")) %>% type_convert()
 EPU_inv <- read.csv("data/EPU_Priority.csv", header=T, colClasses=c("character")) %>% type_convert()
 
 EPU <- left_join(EPU_SBOT, EPU_inv, by=c("EPU.Unit.Name"="EPU"))
-glimpse(EPU)
-EPU$Popn.Change.2012.2020 <- EPU$Est.Popn.April.2020 - EPU$Population.Estimate..2012.
-EPU$Est.Density.km2.2012 <- EPU$Population.Estimate..2012. / EPU$EPU.Land.Area..km2.
+EPU_poly$EPU_Unit_N
+EPU_poly$EPU_Unit_N <- str_remove(EPU_poly$EPU_Unit_N, "[*]") # for some reason need to do this 3 times, doesn't work with 3*
+EPU$EPU.Unit.Name
+all(!is.na(EPU_poly$EPU_Unit_N) %in% EPU$EPU.Unit.Name) # if TRUE then the same names (other than 1 NA)
 
-as.data.frame(EPU %>% filter(is.na(Est.Popn.April.2020)) %>% group_by(EPU.Unit.Name, Population.Density.Class..2012.) %>% select(Est.Density.km2.2012)
-as.data.frame(EPU %>% filter(!is.na(Est.Popn.April.2020)) %>% group_by(EPU.Unit.Name, Population.Density.Class..2012.) %>% select(Est.Popn.April.2020, Population.Estimate..2012.))
-
-EPU %>% group_by(Population.Density.Class..2012.) %>% summarise(mean(Target.Popn, na.rm=T), min(Target.Popn, na.rm=T), max(Target.Popn, na.rm=T))
