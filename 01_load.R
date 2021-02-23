@@ -95,21 +95,26 @@ collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE,
 
 
 ###--- Import collar metadata
-anml.full <- read.csv("Cpt_Cllr_Combined.csv", # point to appropriate metadata file
-                      header = TRUE, stringsAsFactors = TRUE, na.strings=c("", "NA"), row.names=1)
+# check if these are the latest files and they encapsulate the correct range of celss
+cptr_telem <- read_excel("data/Capture and Telemetry_DATABASE_July_28_2020.xls",
+                  sheet = 2,
+                  range = "A11:BZ202") %>% type.convert()
 
-glimpse(anml.full) # view data
-head(anml.full)
+collar_inv <- read_excel("data/Collar Inventory_DATABASE_January_07_2021.xls",
+                 sheet= 1,
+                 range = "A8:Q158") %>% type.convert()
+
+glimpse(cptr_telem)
+glimpse(collar_inv)
+
 
 #####################################################################################
 ###--- Import EPU metadata (from SBOT and inventory files)
 # Read deployment data csv for station covariates
-EPU_SBOT <- read.csv("data/Elk_SBOT_data.csv", header=T, colClasses=c("character")) %>% type_convert()
-EPU_inv <- read.csv("data/EPU_Priority.csv", header=T, colClasses=c("character")) %>% type_convert()
+EPU_SBOT <- read.csv("data/Elk_SBOT_data.csv", header=T, colClasses=c("character"),
+                     stringsAsFactors = TRUE,  na.string=c("","NA")) %>% type_convert()
+EPU_inv <- read.csv("data/EPU_Priority.csv", header=T, colClasses=c("character"),
+                    stringsAsFactors = TRUE,  na.string=c("","NA")) %>% type_convert()
 
-EPU <- left_join(EPU_SBOT, EPU_inv, by=c("EPU.Unit.Name"="EPU"))
-EPU_poly$EPU_Unit_N
-EPU_poly$EPU_Unit_N <- str_remove(EPU_poly$EPU_Unit_N, "[*]") # for some reason need to do this 3 times, doesn't work with 3*
-EPU$EPU.Unit.Name
-all(!is.na(EPU_poly$EPU_Unit_N) %in% EPU$EPU.Unit.Name) # if TRUE then the same names (other than 1 NA)
-
+glimpse(EPU_SBOT)
+glimpse(EPU_inv)
