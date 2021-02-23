@@ -96,26 +96,13 @@ collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE,
 ###--- Import collar metadata
 # check if these are the latest files and they encapsulate the correct range of celss
 cptr_telem <- read_excel("data/Capture and Telemetry_DATABASE_July_28_2020.xls",
-<<<<<<< HEAD
-                  sheet = 2, range = "A11:BZ202", trim_ws = TRUE) %>% type.convert()
-
+                  sheet = 2, range = "A11:BZ202", trim_ws = TRUE, col_types = c("text")) %>% type.convert()
 collar_inv <- read_excel("data/Collar Inventory_DATABASE_January_07_2021.xls",
-                 sheet= 1, range = "A8:Q158", trim_ws = TRUE) %>% type.convert()
-
-glimpse(cptr_telem)
-glimpse(collar_inv)
-=======
-                  sheet = 2,
-                  range = "A11:BZ202") %>% type.convert()
-
-collar_inv <- read_excel("data/Collar Inventory_DATABASE_January_07_2021.xls",
-                 sheet= 1,
-                 range = "A8:Q158") %>% type.convert()
+                 sheet= 1, range = "A8:Q158", trim_ws = TRUE, col_types = c("text")) %>% type.convert()
 
 glimpse(cptr_telem)
 glimpse(collar_inv)
 
->>>>>>> 14fdadc575bc208c188bc98a2e925decd03bf8dd
 
 #####################################################################################
 ###--- Import EPU metadata (from SBOT and inventory files)
