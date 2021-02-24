@@ -55,7 +55,7 @@ ggplot() +
   coord_sf(datum = NA) +
   theme_minimal()
 
-munic.SC <- municipalities() %>% st_crop(st_bbox(SC))
+cities.SC <- bc_cities() %>% st_crop(st_bbox(SC))
 
 # # Import slope, elevation, habitat data for prioirty area
 # # will have to wait until EPUs are decided, otherwise too big to download
