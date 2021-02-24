@@ -318,8 +318,9 @@ ls$dist.m <- st_length(ls)
 
 # add distance from each point to sechelt
 telem_dat$Sechelt.dist.m <- ls$dist.m
-telem_dat %>% group_by(EPU.Fix, Animal.ID) %>% summarise(mean(Sechelt.dist.m), sd(Sechelt.dist.m))
-
+sechelt.dist <- telem_dat %>% group_by(EPU.Fix, Animal.ID) %>% summarise(mean.dist = mean(Sechelt.dist.m), sd.dist = sd(Sechelt.dist.m))
+sechelt.dist.km <- sechelt.dist %>% group_by(EPU.Fix) %>% summarise(dist.km = mean(as.numeric(mean.dist))/1000)
+as.data.frame(sechelt.dist.km %>% arrange(dist.km))
 
 as.data.frame(telem_dat %>% group_by(Pop.Unit.Release) %>% count(EPU.Fix))
 # some collar fixes in different EPU than animal released - did animal move or wrong release location in records?
