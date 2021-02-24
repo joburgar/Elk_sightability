@@ -151,10 +151,16 @@ collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # cur
 collar_dat <- left_join(collar_pos %>% select(Collar.ID, Latitude, Longitude, Mortality.Status, Date.Time.PST, Time.PST, Year, Month, jDay),
                         collar_meta %>% select(Collar.ID, WLHID, Animal.ID, Age.Class, Sex, Pop.Unit.Release, Date.Released))
 
-
+# need to update collar 22587 with Elk013 info for all datapoints prior to 2018
+# first change Animal.ID to Elk013
 collar_dat$Animal.ID <- as.factor(ifelse(collar_dat$Collar.ID=="22587" & collar_dat$Date.Time.PST < "2017-12-31 00:00:00", "Elk013",
                                          ifelse(collar_dat$Collar.ID=="22587" & collar_dat$Date.Time.PST > "2017-12-31 00:00:00", "Elk014",
                                                 as.character(collar_dat$Animal.ID))))
+collar_dat <- collar_dat %>%
+  mutate(Pop.Unit.Release = case_when(Animal.ID %in% c('Elk013') ~ 'Stave',
+                          TRUE ~ as.character(Pop.Unit.Release)),
+        Date.Released = case_when(Animal.ID %in% c('Elk013') ~ as.Date('2017-04-11'),
+                                   TRUE ~ as.Date(Date.Released)))
 
 collar_dat %>% count(Animal.ID) # looks good, all collars with associated metadata are correctly loaded
 
@@ -165,22 +171,22 @@ summary(as.Date(collar_dat$Date.Time.PST))
 summary(as.Date(collar_dat$Date.Released))
 collar_dat$use.fix <- if_else(as.Date(collar_dat$Date.Time.PST) - as.Date(collar_dat$Date.Released)>0, "yes", "no")
 collar_dat %>% filter(use.fix!="yes") %>% count(Animal.ID)
-# need to sort out Elk013 and Elk018, others just 1 day off or not in collar_meta (yet)
+# seems like Elk018 might have just had the collar on in the office / out flying, but will need to check
+# all other collars just 1 day off or not in collar_meta (yet)
 
-collar_dat %>% filter(use.fix!="yes")%>% group_by(Animal.ID) %>% count( Date.Released, Date.Time.PST)
+#####################################################################################
+#- plot and visual cleaned telemetry data
+telem_dat <- collar_dat %>% filter(use.fix=="yes")
+nrow(collar_dat) - nrow(telem_dat) # removed 537 erroneous data points
 
+telem_dat$Count <- 1 # add count for each fix
 
-##########################################
-## START HERE ############################
-## WORK ON PLOTTING & PRIORITIZING EPUS ##
-## SEND UPDATE /MTG RQST BY END OF DAY ###
-##########################################
 
 # check collar data loaded properly
-collar.dates <- collar_pos %>% group_by(Collar.ID) %>% summarise(min.Date = min(Date.Time.PST), max.Date = max(Date.Time.PST))
+collar.dates <- telem_dat %>% group_by(Collar.ID) %>% summarise(min.Date = min(Date.Time.PST), max.Date = max(Date.Time.PST))
 min(collar.dates$min.Date); max(collar.dates$min.Date)
 # [1] "2017-01-25 06:00:37 PST"
-# [1] "2020-02-25 06:32:36 PST"
+# [1] "2020-06-26 08:02:38 PDT"
 
 min(collar.dates$max.Date); max(collar.dates$max.Date)
 # [1] "2018-11-07 06:13:14 PST"
@@ -188,13 +194,13 @@ min(collar.dates$max.Date); max(collar.dates$max.Date)
 
 # will still need to clean collar data to make sure not included dates when collaring individuals
 # speak to bios about # days post collaring to start including animals in analysis
-collar_annual_fixes <- collar_pos %>% group_by(Collar.ID, Year) %>% summarise(Counts = sum(Count))
+collar_annual_fixes <- telem_dat %>% group_by(Collar.ID, Year) %>% summarise(Counts = sum(Count))
 ggplot(collar_annual_fixes, aes(fill=Collar.ID, y=Counts, x=Collar.ID))+
   geom_bar(position="dodge", stat="identity")+
   facet_wrap(~Year)
 
 
-ggplot(data = collar_annual_fixes, aes(x = reorder(Collar.ID, -Counts), y = Counts, fill= Collar.ID)) +
+annual.fixes <- ggplot(data = collar_annual_fixes, aes(x = reorder(Collar.ID, -Counts), y = Counts, fill= Collar.ID)) +
   geom_bar(stat = "identity") +
   theme_classic() + ylab("Number of Annual Fixes per Collar") +
   theme(legend.position="none") +
@@ -202,11 +208,18 @@ ggplot(data = collar_annual_fixes, aes(x = reorder(Collar.ID, -Counts), y = Coun
   theme(axis.title.y = element_text(size = 14)) + theme(axis.title.x = element_blank())+
   facet_wrap(~Year)
 
-# check data loaded
-glimpse(collar_pos)
-collar_pos %>% count(Collar.ID) # 65 collars
+Cairo(file="out/Collar_annual_fixes.PNG",
+      type="png",
+      width=3000,
+      height=2200,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+annual.fixes
+dev.off()
 
-names(collar_pos)
+#- convert telem_dat to sf
+telem_sf <- st_as_sf(telem_dat, coords = c("Longitude", "Latitude"), crs=4326)
 
 #####################################################################################
 EPU <- left_join(EPU_SBOT, EPU_inv, by=c("EPU.Unit.Name"="EPU"))
@@ -215,12 +228,102 @@ EPU_poly$EPU_Unit_N <- str_remove(EPU_poly$EPU_Unit_N, "[*]") # for some reason 
 EPU$EPU.Unit.Name
 all(!is.na(EPU_poly$EPU_Unit_N) %in% EPU$EPU.Unit.Name) # if TRUE then the same names (other than 1 NA)
 
+glimpse(EPU)
+names(EPU)
+EPU <- EPU %>% select("EPU.Unit.Name", "EPU.Land.Area..Ha.", "EPU.Land.Area..km2.","Population.Estimate..2012.","Population.Density.Class..2012.",
+                      "EWR.Requirement","EWR.available.quality","Forage.cover.availability","Forage.cover.interspersion","Population.Resiliency",
+                      "Predation.Risk", "Unregulated.Hunting", "Min.2020", "Survey.Priority.2020", "Est.Popn.April.2020", "Target.Popn", "Est.Popn.Trend",
+                      "GPS.Collars.2020","GPS.Collars.2021")
+colnames(EPU) <- c("EPU.Unit.Name", "EPU.Area.Ha", "EPU.Area.km2","Pop.Est.2012","Pop.Dens.Class.2012", "EWR.Requirement","EWR.available.quality",
+                   "Forage.cover.availability","Forage.cover.interspersion","Population.Resiliency","Predation.Risk", "Unregulated.Hunting",
+                   "Pop.Min.2020", "Survey.Priority.2020", "Pop.Est.2020", "Target.Pop", "Est.Pop.Trend","GPS.Collars.2020","GPS.Collars.2021")
 
-EPU$Popn.Change.2012.2020 <- EPU$Est.Popn.April.2020 - EPU$Population.Estimate..2012.
-EPU$Est.Density.km2.2012 <- EPU$Population.Estimate..2012. / EPU$EPU.Land.Area..km2.
+EPU$Pop.Change.2012.2020 <- EPU$Pop.Est.2020 - EPU$Pop.Est.2012
+EPU$Est.Density.km2.2012 <- EPU$Pop.Est.2012 / EPU$EPU.Area.km2
+EPU %>% group_by(Pop.Dens.Class.2012) %>% summarise(mean(Target.Pop, na.rm=T), min(Target.Pop, na.rm=T), max(Target.Pop, na.rm=T))
 
-as.data.frame(EPU %>% filter(is.na(Est.Popn.April.2020)) %>% group_by(EPU.Unit.Name, Population.Density.Class..2012.) %>% select(Est.Density.km2.2012))
-as.data.frame(EPU %>% filter(!is.na(Est.Popn.April.2020)) %>% group_by(EPU.Unit.Name, Population.Density.Class..2012.) %>% select(Est.Popn.April.2020, Population.Estimate..2012.))
+EPU %>% filter(!is.na(GPS.Collars.2021)) %>% filter(GPS.Collars.2021>0) %>% group_by(GPS.Collars.2021) %>% count(EPU.Unit.Name)
+sum(EPU$GPS.Collars.2021,  na.rm=T) # why does the inventory spreadsheet say 34 collars while there are clearly twice as  many on the land?
+# disregard the spreadsheet and go by vectronics download for collar info
 
-EPU %>% group_by(Population.Density.Class..2012.) %>% summarise(mean(Target.Popn, na.rm=T), min(Target.Popn, na.rm=T), max(Target.Popn, na.rm=T))
+all(EPU_poly$EPU_Unit_N %in% EPU$EPU.Unit.Name)
+EPU_poly %>% filter(is.na(EPU_Unit_N))
 
+#####################################################################################
+###--- view OSM data and download appropriate section for study area
+EPU_latlon <- st_transform(EPU_poly, crs=4326)
+cities.SC_latlon <- st_transform(cities.SC, crs=4326)
+st_bbox(EPU_latlon)
+st_bbox(telem_sf)
+
+# use EPU_latlon for entire study area
+
+LAT1 = st_bbox(EPU_latlon)[2] ; LAT2 = st_bbox(EPU_latlon)[4]
+LON1 = st_bbox(EPU_latlon)[3] ; LON2 = st_bbox(EPU_latlon)[1]
+
+#our background map
+map <- openmap(c(LAT2,LON1), c(LAT1,LON2), zoom = NULL,
+               type = c("osm", "stamen-toner", "stamen-terrain","stamen-watercolor", "esri","esri-topo")[6],
+               mergeTiles = TRUE)
+
+## OSM CRS :: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs"
+map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# mytheme <- theme(plot.title = element_text(face = "bold",size = rel(1.2), hjust = 0.5),
+#                  panel.background = element_rect(colour = NA),
+#                  plot.background = element_rect(colour = NA),
+#                  axis.title = element_text(face = "bold",size = rel(1)),
+#                  axis.title.y = element_text(angle=90,vjust =2),
+#                  axis.title.x = element_text(vjust = -0.2))
+
+Collar_plot_all <- autoplot(map.latlon)  +
+  labs(title = "Elk Locations", subtitle = "Vectronics Data - downloaded Feb 19, 2021",x = "Longitude", y="Latitude")+
+  #geom_label(data=telem_dat, aes(x=Longitude ,y=Latitude, label=Animal.ID, fontface=7), hjust=1, vjust=0, size=4) +
+  geom_point(data=telem_dat, aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21) +
+  #scale_fill_gradientn(colours = rainbow(10)) +
+  mytheme
+
+Collar_plot_2021 <- autoplot(map.latlon)  +
+  labs(title = "Elk Locations - 2021", subtitle = "Vectronics Data - downloaded Feb 19, 2021",x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$Year=="2021",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21) +
+  mytheme
+
+#####################################################################################
+###--- simple map overlaying EPU and 2021 telem locations
+
+ggplot() +
+  geom_sf(data = EPU_latlon, fill = NA) +
+  #geom_sf_label(data = EPU_poly, aes(label = EPU_Unit_N), cex=2) +
+  geom_sf(data = telem_sf[telem_sf$Year=="2021",], aes(fill=Animal.ID, col=Animal.ID))+
+  geom_sf(data = cities.SC[cities.SC$CITY_TYPE!="VL",]) + #geom_sf_label(data = cities.SC, aes(label = NAME), cex=2) +
+  theme(legend.position = "none")+
+  coord_sf()+
+  theme_minimal()
+
+# add EPU.Unit.Name to telem_sf point (intersect)
+telem_sf <- st_join(telem_sf, EPU_latlon)
+# then add that EPU location to telem_dat object
+telem_dat$EPU.Fix <- telem_sf$EPU_Unit_N
+
+cities.SC$NAME
+
+# add distance to Sechelt for ease of logistics
+# need to convert to utm for m distance
+# espg 26910
+telem_utm <- st_transform(telem_sf, crs=26910)
+cities.SC_utm <- st_transform(cities.SC, crs=26910)
+
+ls = st_nearest_points(cities.SC_utm[cities.SC_utm$NAME=="Sechelt",], telem_utm)
+ls$dist.m <- st_length(ls)
+
+# add distance from each point to sechelt
+telem_dat$Sechelt.dist.m <- ls$dist.m
+telem_dat %>% group_by(EPU.Fix, Animal.ID) %>% summarise(mean(Sechelt.dist.m), sd(Sechelt.dist.m))
+
+
+as.data.frame(telem_dat %>% group_by(Pop.Unit.Release) %>% count(EPU.Fix))
+# some collar fixes in different EPU than animal released - did animal move or wrong release location in records?
+
+elk.per.EPU <- as.data.frame(telem_dat %>% filter(Year=="2021") %>% group_by(EPU.Fix) %>% count(Animal.ID))
+elk.per.EPU %>% count(EPU.Fix) # 22 EPUs with elk with active collars in 2021
+elk.per.EPU %>% count(Animal.ID) # 47 elk with operational collars in 2021
