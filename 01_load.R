@@ -25,7 +25,8 @@ tz = Sys.timezone() # specify timezone in BC
 #- Upload EPU metadata (from SBOT and inventory files)
 
 # Load Packages
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo",
+                      "OpenStreetMap", "ggmap")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -54,6 +55,7 @@ ggplot() +
   coord_sf(datum = NA) +
   theme_minimal()
 
+munic.SC <- municipalities() %>% st_crop(st_bbox(SC))
 
 # # Import slope, elevation, habitat data for prioirty area
 # # will have to wait until EPUs are decided, otherwise too big to download
@@ -69,11 +71,6 @@ ggplot() +
 #- EPU polygon shapefile
 GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
 EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
-
-ggplot(EPU_poly) +
-  geom_sf(aes(fill = OBJECTID)) +
-  geom_sf_label(aes(label = EPU_Unit_N), cex=2) +
-  theme(legend.position = "none")
 
 #####################################################################################
 ###--- Import collar telemetry data
