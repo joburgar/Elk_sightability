@@ -50,12 +50,32 @@ ECOreg.SC <- ecoregions() %>% st_crop(st_bbox(SC))
 ECOsec.SC <- ecosections() %>% st_crop(st_bbox(SC))
 
 ggplot() +
+  geom_sf(data = BEC.SC, aes(fill=MAP_LABEL)) +
+  geom_sf(data = SC,  color = "black", fill = NA, lwd=1.5) +
+  coord_sf(datum = NA) +
+  theme_minimal()
+
+ggplot() +
   geom_sf(data = ECOsec.SC, aes(fill=ECOSECTION_CODE)) +
   geom_sf(data = SC,  color = "black", fill = NA, lwd=1.5) +
   coord_sf(datum = NA) +
   theme_minimal()
 
 cities.SC <- bc_cities() %>% st_crop(st_bbox(SC))
+as.data.frame(available_layers())
+
+
+# Import road layer
+# Using the bc data warehouse option to clip to SC aoi
+# bcdc_search("road", res_format = "wms")
+#
+# bcdc_tidy_resources("bb060417-b6e6-4548-b837-f9060d94743e") %>%
+#   filter(bcdata_available == "TRUE") %>% select(name, id)
+#
+# as.data.frame(bcdc_describe_feature("bb060417-b6e6-4548-b837-f9060d94743e"))
+# bcdc_query_geodata("0a83163b-a62f-4ce6-a9a1-21c228b0c0a3") %>% filter(BUSINESS_AREA_PROJECT_ID==4678)
+#
+
 
 # # Import slope, elevation, habitat data for prioirty area
 # # will have to wait until EPUs are decided, otherwise too big to download
@@ -66,11 +86,15 @@ cities.SC <- bc_cities() %>% st_crop(st_bbox(SC))
 #
 # bcdc_describe_feature("57b8ba13-cd01-43a5-9910-bc18375426d0")
 # bcdc_query_geodata("0a83163b-a62f-4ce6-a9a1-21c228b0c0a3") %>% filter(BUSINESS_AREA_PROJECT_ID==4678)
-#
+
+#- South Coast roads data from BC Data Warehouse
+BCWData_Dir <- "C:/Users/JBURGAR/R/Analysis/BC_Warehouse_Data/Roads/DRA_DGTL_ROAD_ATLAS_MPAR_SP"
+Roads_line <- st_read(dsn=BCWData_Dir, layer = "DRA_MPAR_line")
 
 #- EPU polygon shapefile
 GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
 EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
+
 
 #####################################################################################
 ###--- Import collar telemetry data
