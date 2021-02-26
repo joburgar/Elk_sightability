@@ -320,11 +320,82 @@ ls$dist.m <- st_length(ls)
 telem_dat$Sechelt.dist.m <- ls$dist.m
 sechelt.dist <- telem_dat %>% group_by(EPU.Fix, Animal.ID) %>% summarise(mean.dist = mean(Sechelt.dist.m), sd.dist = sd(Sechelt.dist.m))
 sechelt.dist.km <- sechelt.dist %>% group_by(EPU.Fix) %>% summarise(dist.km = mean(as.numeric(mean.dist))/1000)
+sechelt.dist.km$EPU.Fix <- str_remove(sechelt.dist.km$EPU.Fix, "[*]") # do twice
 as.data.frame(sechelt.dist.km %>% arrange(dist.km))
+
 
 as.data.frame(telem_dat %>% group_by(Pop.Unit.Release) %>% count(EPU.Fix))
 # some collar fixes in different EPU than animal released - did animal move or wrong release location in records?
 
 elk.per.EPU <- as.data.frame(telem_dat %>% filter(Year=="2021") %>% group_by(EPU.Fix) %>% count(Animal.ID))
-elk.per.EPU %>% count(EPU.Fix) # 22 EPUs with elk with active collars in 2021
+elk.per.EPU$EPU.Fix <- str_remove(elk.per.EPU$EPU.Fix, "[*]") # for some reason need to do this for each *
+collars.per.EPU <- elk.per.EPU %>% count(EPU.Fix) # 22 EPUs with elk with active collars in 2021
 elk.per.EPU %>% count(Animal.ID) # 47 elk with operational collars in 2021
+
+#####################################################################################
+###--- simple map overlaying EPU and roads
+roads_latlon <- st_transform(Roads_line, crs=4326)
+summary(roads_latlon)
+
+# a lot of roads so only run if need the visual, takes some time
+# ggplot() +
+#   geom_sf(data = EPU_latlon, fill = NA) +
+#   geom_sf(data = roads_latlon, aes(fill=FTYPE, col=FTYPE))+
+#   coord_sf()+
+#   theme_minimal()
+
+# intersection
+int = st_intersection(roads_latlon, EPU_latlon)
+# find out about the length of each line segment
+int$len = st_length(int)
+
+EPU_roads <- int %>% group_by(EPU_Unit_N, FTYPE) %>% summarise(sum(len)) %>% st_drop_geometry()
+colnames(EPU_roads) <- c("EPU.Unit.Name", "Road.Type", "Road.Length.m")
+EPU_roads$EPU.Unit.Name <- str_remove(EPU_roads$EPU.Unit.Name, "[*]") # for some reason need to do this 3 times, doesn't work with 3*
+
+EPU_roads$EPU.Area.km2 <- EPU$EPU.Area.km2[match(EPU_roads$EPU.Unit.Name, EPU$EPU.Unit.Name)]
+EPU_roads$Prop.Road <- as.numeric((EPU_roads$Road.Length.m/1000) / EPU_roads$EPU.Area.km2)
+
+as.data.frame(EPU_roads %>% arrange(Prop.Road) %>% filter(Road.Type=="Road"))
+
+#####################################################################################
+# Prioritise EPUs for pilot project
+EPU_priority <- full_join(collars.per.EPU,
+                          EPU_roads %>% filter(Road.Type=="Road"),
+                          by=c("EPU.Fix" = "EPU.Unit.Name"))
+colnames(EPU_priority)[2] <- "Collared.Elk.2021"
+
+EPU_priority <- left_join(EPU_priority %>% rename("EPU.Unit.Name" = "EPU.Fix") %>% select(-Road.Length.m, -Road.Type),
+                          EPU %>% select(EPU.Unit.Name, Target.Pop, Pop.Est.2020, Est.Pop.Trend))
+
+EPU_priority <- left_join(EPU_priority, sechelt.dist.km, by=c("EPU.Unit.Name" = "EPU.Fix"))
+EPU_priority <- EPU_priority %>% rename("dist.Sechelt" = "dist.km")
+
+EPU_priority$Prop.Collared <- EPU_priority$Collared.Elk.2021 / EPU_priority$Pop.Est.2020
+
+# stable pop rank
+EPU_priority$Rank_StablePop <- ifelse(EPU_priority$Est.Pop.Trend=="S", 1, 2) # where 1 is stable and 2 is either I or D
+EPU_priority$Rank_StablePop <- replace_na(EPU_priority$Rank_StablePop, 3) # the third rank
+
+# proption of collared elk rank
+EPU_priority$Rank_PropCollared <- rank(-EPU_priority$Prop.Collared, na.last=TRUE, ties.method = "min")
+EPU_priority$Rank_PropCollared <- if_else(EPU_priority$Rank_PropCollared>17, 18, as.numeric(EPU_priority$Rank_PropCollared))
+
+# proximity to sechelt rank (closer is better for access / logistics)
+EPU_priority$Rank_ProxSechelt <- rank(EPU_priority$dist.Sechelt, na.last=TRUE, ties.method = "min")
+EPU_priority$Rank_ProxSechelt <- if_else(EPU_priority$Rank_ProxSechelt>25, 26, as.numeric(EPU_priority$Rank_ProxSechelt))
+
+# road coverage rank (more roads = better, for access / logistics)
+EPU_priority$Rank_PropRoad <- rank(-EPU_priority$Prop.Road, na.last=TRUE, ties.method = "min")
+EPU_priority$Rank_PropRoad <- if_else(EPU_priority$Rank_PropRoad>43, 44, as.numeric(EPU_priority$Rank_PropRoad))
+
+# EPU area rank (smaller size = better, for access / logistics)
+EPU_priority$Rank_EPUArea <- rank(EPU_priority$EPU.Area.km2, na.last=TRUE, ties.method = "min")
+EPU_priority$Rank_EPUArea <- if_else(EPU_priority$Rank_EPUArea>43, 44, as.numeric(EPU_priority$Rank_EPUArea))
+
+###--- filter based on rank
+EPU_priority %>% filter(Rank_StablePop==1) # 13 EPUs with stable populations
+EPU_priority %>% arrange(Rank_StablePop, Rank_ProxSechelt, Rank_PropRoad, Rank_EPUArea, Rank_PropCollared)
+
+write.csv(EPU_priority, "out/EPU_priority.csv")
+
