@@ -131,7 +131,6 @@ as.data.frame(collar_meta %>% select(Collar.ID, Animal.ID))
 
 #####################################################################################
 #- downloaded telemetry data
-glimpse(collar_pos)
 collar_pos$Collar.ID <- as.factor(collar_pos$Collar.ID)
 colnames(collar_pos)[3:4] <- c("Latitude", "Longitude")
 
@@ -165,25 +164,54 @@ collar_dat <- collar_dat %>%
 collar_dat %>% count(Animal.ID) # looks good, all collars with associated metadata are correctly loaded
 
 glimpse(collar_dat)
+collar_dat %>% count(Collar.ID)
 
 #- remove all fixes prior to release dates
 summary(as.Date(collar_dat$Date.Time.PST))
 summary(as.Date(collar_dat$Date.Released))
 collar_dat$use.fix <- if_else(as.Date(collar_dat$Date.Time.PST) - as.Date(collar_dat$Date.Released)>0, "yes", "no")
+collar_dat$use.fix <- replace_na(collar_dat$use.fix, "yes")
+
+collar_dat %>% filter(is.na(Animal.ID)) %>% count(Collar.ID)
+as.data.frame(collar_dat %>% group_by(Animal.ID) %>% count(use.fix, Collar.ID))
+
+
 collar_dat %>% filter(use.fix!="yes") %>% count(Animal.ID)
 # seems like Elk018 might have just had the collar on in the office / out flying, but will need to check
 # all other collars just 1 day off or not in collar_meta (yet)
 
+# add in Animal.ID for new collars
+# all animals without Animal.ID will be adding sequentially
+ElkNA <- collar_dat %>% filter(is.na(Animal.ID)) %>% count(Collar.ID)
+suffix[length(suffix)]
+suffix2 <- seq(from = suffix[length(suffix)]+1, to=suffix[length(suffix)]+ nrow(ElkNA))
+ElkNA$Animal.ID <-  paste("Elk",str_pad(suffix2, 3, pad = "0"), sep="")
+
+
+old.collars <- collar_dat %>% filter(!is.na(Animal.ID)) %>% group_by(Collar.ID) %>% count(Animal.ID)
+old.collars <- old.collars[c("Collar.ID", "n", "Animal.ID")]
+all.collars <- rbind(as.data.frame(old.collars), ElkNA)
+
+collar_dat$Animal.ID2 <- all.collars$Animal.ID[match(collar_dat$Collar.ID, all.collars$Collar.ID)]
+as.data.frame(collar_dat %>% group_by(Animal.ID) %>% count(Animal.ID2))
+collar_dat <- collar_dat %>% mutate(Animal.ID = case_when(is.na(Animal.ID) ~ Animal.ID2,
+                                                          TRUE ~ Animal.ID)) %>% select(-Animal.ID2)
+
+
 #####################################################################################
 #- plot and visual cleaned telemetry data
-telem_dat <- collar_dat %>% filter(use.fix=="yes")
-nrow(collar_dat) - nrow(telem_dat) # removed 537 erroneous data points
+
+telem_dat <- collar_dat %>% filter(use.fix=="yes", na.rm=TRUE) # includes animals with meta data and new animals
+nrow(collar_dat) - nrow(telem_dat) # removed 237 erroneous data points
 
 telem_dat$Count <- 1 # add count for each fix
 
+telem_dat %>% count(Animal.ID)
+
 
 # check collar data loaded properly
-collar.dates <- telem_dat %>% group_by(Collar.ID) %>% summarise(min.Date = min(Date.Time.PST), max.Date = max(Date.Time.PST))
+collar.dates <- telem_dat %>% group_by(Collar.ID, Animal.ID) %>% summarise(min.Date = min(Date.Time.PST), max.Date = max(Date.Time.PST))
+as.data.frame(collar.dates)
 min(collar.dates$min.Date); max(collar.dates$min.Date)
 # [1] "2017-01-25 06:00:37 PST"
 # [1] "2020-06-26 08:02:38 PDT"
@@ -244,7 +272,7 @@ EPU %>% group_by(Pop.Dens.Class.2012) %>% summarise(mean(Target.Pop, na.rm=T), m
 
 EPU %>% filter(!is.na(GPS.Collars.2021)) %>% filter(GPS.Collars.2021>0) %>% group_by(GPS.Collars.2021) %>% count(EPU.Unit.Name)
 sum(EPU$GPS.Collars.2021,  na.rm=T) # why does the inventory spreadsheet say 34 collars while there are clearly twice as  many on the land?
-# disregard the spreadsheet and go by vectronics download for collar info
+# disregard the spreadsheet and go by vectronics download for collar info, except realise that new collars are not in download (I don't have access key)
 
 all(EPU_poly$EPU_Unit_N %in% EPU$EPU.Unit.Name)
 EPU_poly %>% filter(is.na(EPU_Unit_N))
@@ -276,17 +304,27 @@ map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS8
 #                  axis.title.y = element_text(angle=90,vjust =2),
 #                  axis.title.x = element_text(vjust = -0.2))
 
-Collar_plot_all <- autoplot(map.latlon)  +
-  labs(title = "Elk Locations", subtitle = "Vectronics Data - downloaded Feb 19, 2021",x = "Longitude", y="Latitude")+
-  #geom_label(data=telem_dat, aes(x=Longitude ,y=Latitude, label=Animal.ID, fontface=7), hjust=1, vjust=0, size=4) +
-  geom_point(data=telem_dat, aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21) +
-  #scale_fill_gradientn(colours = rainbow(10)) +
-  mytheme
+# Collar_plot_all <- autoplot(map.latlon)  +
+#   labs(title = "Elk Locations", subtitle = "Vectronics Data - downloaded Feb 19, 2021",x = "Longitude", y="Latitude")+
+#   #geom_label(data=telem_dat, aes(x=Longitude ,y=Latitude, label=Animal.ID, fontface=7), hjust=1, vjust=0, size=4) +
+#   geom_point(data=telem_dat, aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21) +
+#   #scale_fill_gradientn(colours = rainbow(10)) +
+#   mytheme
 
+download_date <- substr(recent_file, 11,21)
 Collar_plot_2021 <- autoplot(map.latlon)  +
-  labs(title = "Elk Locations - 2021", subtitle = "Vectronics Data - downloaded Feb 19, 2021",x = "Longitude", y="Latitude")+
-  geom_point(data=telem_dat[telem_dat$Year=="2021",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21) +
-  mytheme
+  labs(title = "Elk 2021 Locations", subtitle = paste("Vectronics Data - latest download",download_date, sep=" "),x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$Year=="2021",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+
+Cairo(file="out/Collar_plot_2021.PNG",
+      type="png",
+      width=3000,
+      height=2200,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Collar_plot_2021
+dev.off()
 
 #####################################################################################
 ###--- simple map overlaying EPU and 2021 telem locations
@@ -363,7 +401,17 @@ as.data.frame(EPU_roads %>% arrange(Prop.Road) %>% filter(Road.Type=="Road"))
 EPU_priority <- full_join(collars.per.EPU,
                           EPU_roads %>% filter(Road.Type=="Road"),
                           by=c("EPU.Fix" = "EPU.Unit.Name"))
-colnames(EPU_priority)[2] <- "Collared.Elk.2021"
+colnames(EPU_priority)[2] <- "Collared.Elk.2020"
+EPU_priority$Collared.Elk.2021 <- NA
+
+EPU_priority$EPU.Fix
+
+EPU_priority <- EPU_priority %>% mutate(Collared.Elk.2021 = case_when(EPU.Fix %in% c("Vancouver") ~ 4,
+                                                                      EPU.Fix %in% c("Clowhom") ~ 3,
+                                                                      EPU.Fix %in% c("Skwawka") ~ 5,
+                                                                      EPU.Fix %in% c("Sechelt Peninsula") ~ 8,
+                                                                      EPU.Fix %in% c("Narrows") ~ 2,
+                                                                      TRUE ~ as.numeric(Collared.Elk.2020)))
 
 EPU_priority <- left_join(EPU_priority %>% rename("EPU.Unit.Name" = "EPU.Fix") %>% select(-Road.Length.m, -Road.Type),
                           EPU %>% select(EPU.Unit.Name, Target.Pop, Pop.Est.2020, Est.Pop.Trend))
@@ -373,29 +421,43 @@ EPU_priority <- EPU_priority %>% rename("dist.Sechelt" = "dist.km")
 
 EPU_priority$Prop.Collared <- EPU_priority$Collared.Elk.2021 / EPU_priority$Pop.Est.2020
 
-# stable pop rank
-EPU_priority$Rank_StablePop <- ifelse(EPU_priority$Est.Pop.Trend=="S", 1, 2) # where 1 is stable and 2 is either I or D
-EPU_priority$Rank_StablePop <- replace_na(EPU_priority$Rank_StablePop, 3) # the third rank
+# stable pop requirement = must be stable
+EPU_priority$Rank_StablePop <- ifelse(EPU_priority$Est.Pop.Trend=="S", "Stable", "Not Stable") # where 1 is stable and 2 is either I or D
 
-# proption of collared elk rank
-EPU_priority$Rank_PropCollared <- rank(-EPU_priority$Prop.Collared, na.last=TRUE, ties.method = "min")
-EPU_priority$Rank_PropCollared <- if_else(EPU_priority$Rank_PropCollared>17, 18, as.numeric(EPU_priority$Rank_PropCollared))
+###--- ranking of collars with the higher the number being the higher rank
+# proportion of collared elk rank, 18 = highest rank, 1 = NA
+sum(!is.na(EPU_priority$Prop.Collared))
+EPU_priority$Rank_PropCollared <- rank(EPU_priority$Prop.Collared, na.last=TRUE, ties.method = "max")+1
+EPU_priority$Rank_PropCollared <- if_else(EPU_priority$Rank_PropCollared>18, 1, as.numeric(EPU_priority$Rank_PropCollared))
 
 # proximity to sechelt rank (closer is better for access / logistics)
-EPU_priority$Rank_ProxSechelt <- rank(EPU_priority$dist.Sechelt, na.last=TRUE, ties.method = "min")
-EPU_priority$Rank_ProxSechelt <- if_else(EPU_priority$Rank_ProxSechelt>25, 26, as.numeric(EPU_priority$Rank_ProxSechelt))
+sum(!is.na(EPU_priority$dist.Sechelt))
+EPU_priority$Rank_ProxSechelt <- rank(-EPU_priority$dist.Sechelt, na.last=TRUE, ties.method = "max")+1
+EPU_priority$Rank_ProxSechelt <- if_else(EPU_priority$Rank_ProxSechelt>26, 1, as.numeric(EPU_priority$Rank_ProxSechelt))
 
 # road coverage rank (more roads = better, for access / logistics)
-EPU_priority$Rank_PropRoad <- rank(-EPU_priority$Prop.Road, na.last=TRUE, ties.method = "min")
-EPU_priority$Rank_PropRoad <- if_else(EPU_priority$Rank_PropRoad>43, 44, as.numeric(EPU_priority$Rank_PropRoad))
+sum(!is.na(EPU_priority$Prop.Road))
+EPU_priority$Rank_PropRoad <- rank(EPU_priority$Prop.Road, na.last=TRUE, ties.method = "max")+1
+EPU_priority$Rank_PropRoad <- if_else(EPU_priority$Rank_PropRoad>42, 1, as.numeric(EPU_priority$Rank_PropRoad))
 
 # EPU area rank (smaller size = better, for access / logistics)
-EPU_priority$Rank_EPUArea <- rank(EPU_priority$EPU.Area.km2, na.last=TRUE, ties.method = "min")
-EPU_priority$Rank_EPUArea <- if_else(EPU_priority$Rank_EPUArea>43, 44, as.numeric(EPU_priority$Rank_EPUArea))
+sum(!is.na(EPU_priority$EPU.Area.km2))
+EPU_priority$Rank_EPUArea <- rank(-EPU_priority$EPU.Area.km2, na.last=TRUE, ties.method = "max")+1
+EPU_priority$Rank_EPUArea <- if_else(EPU_priority$Rank_EPUArea>42, 1, as.numeric(EPU_priority$Rank_EPUArea))
 
 ###--- filter based on rank
-EPU_priority %>% filter(Rank_StablePop==1) # 13 EPUs with stable populations
-EPU_priority %>% arrange(Rank_StablePop, Rank_ProxSechelt, Rank_PropRoad, Rank_EPUArea, Rank_PropCollared)
+EPU_priority %>% filter(Rank_StablePop=="Stable") # 12 EPUs with stable populations
+EPU_priority <- EPU_priority %>% filter(Rank_StablePop=="Stable") %>%
+  arrange(-Rank_PropCollared, -Rank_ProxSechelt, -Rank_PropRoad, -Rank_EPUArea)
+EPU_priority <- EPU_priority[complete.cases(EPU_priority),]
+
+# get centroids of EPUs in UTM (espg 26910, NAD 83 Zone 10)
+Priority.EPUs <- EPU_priority$EPU.Unit.Name
+Priority.EPU.Centroid <- EPU_poly %>% filter(EPU_Unit_N %in% Priority.EPUs) %>% st_transform(crs = 26910) %>% st_centroid()
+Priority.EPU.Centroid_coordinates <-  as.data.frame(Priority.EPU.Centroid %>% st_coordinates())
+Priority.EPU.Centroid_coordinates$EPU.Unit.Name <- Priority.EPU.Centroid$EPU_Unit_N
+
+EPU_priority <- left_join(EPU_priority, Priority.EPU.Centroid_coordinates)
 
 write.csv(EPU_priority, "out/EPU_priority.csv")
 
