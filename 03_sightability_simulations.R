@@ -92,30 +92,81 @@ print(format(round(boot.est$est, 0), big.mark = ","), quote = FALSE)
 # yearling:cow ratio = 21:100
 # bull:cow ratio = 25:100
 
+#- function to estimate number of animals per age-sex class based on classification ratios
 
-# so for random numbers use rnorm with mean and sd specified:
-# bulls: mean = 0.3
-bulls.grp <- round(abs(rnorm(20, mean = 0.3, sd = 1.5)),0)
-sum(bulls.grp)
-cows.grp <- round(abs(rnorm(20, mean = 13, sd = 10.4)),0)
-sum(cows.grp)
-calves.grp <- round(abs(rnorm(20, mean = 3.3, sd = 2)),0)
-sum(calves.grp)
+est.sex.age.class.pop <- function(pop.size=222, ratio.value=30){
+  round(ratio.value / (ratio.value+100)*pop.size,0)
+}
 
-sim.obs.m <- as.data.frame(cbind(bulls.grp, cows.grp, calves.grp))
+# est.bull.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 25)
+# est.calf.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 30)
+# est.spike.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 21)
+# est.cow.Sechelt <- 222 - (est.bull.Sechelt + est.calf.Sechelt + est.spike.Sechelt)
 
-# to make more realistic, if 3 bulls then remove any cows or calves from group
-sim.obs.m <- sim.obs.m %>% mutate(cows.grp = case_when(bulls.grp == 3 ~ 0,TRUE ~ cows.grp))
+# for random numbers use rnorm with mean and sd specified for sex/age-class, bound by range of group sizes
+# n = number of groups (i.e., sightability trials)
+sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
 
-# fill in rest of observation data frame
-sim.obs.m$year <- 2020  # specify year 2002
-sim.obs.m$stratum <- 1  # not stratified so all stratum = 1
-sim.obs.m$subunit <- 1  # EPU?
-sim.obs.m$total <- sim.obs.m$bulls.grp + sim.obs.m$cows.grp + sim.obs.m$calves.grp
-sim.obs.m$grpsize <- sim.obs.m$total
+# use these functions together to generate simluated sightability trial dataset
 
-# create voc category, ranging from 0 to 1 (proportion of veg)
-sim.obs.m$voc <- runif(20, 0,1)
+
+###--- create simulted observation data.frame
+# operational data frame consists of:
+# each row corresponds to an independently sighted group with animal-specific covariates
+# subunit is the sample plot identifier (EPU in our case?)
+# stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
+obs.m[1:5,]
+glimpse(obs.m)
+
+sim.obs.m.fn <- function(year=c(2020,2019), stratum=1, subunit=1, bull.ratio=25, calf.ratio=30, spike.ratio=21, pop.size=222, covariates="voc", grpsize=c(0,42),
+                         bull.grp.m=0.3, bull.grp.sd=1.5, cow.grp.m=13, cow.grp.sd=10.4, calf.grp.m=3.3, calf.grp.sd=1.5, spike.grp.m=1.4, spike.grp.sd=1.0,
+                         n.sghtblty.trls=20){
+  bull.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = bull.ratio)
+  calf.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = calf.ratio)
+  spike.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = spike.ratio)
+  cow.grp <- pop.size - (bull.grp + calf.grp + spike.grp)
+
+  bulls <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=bull.grp, mean=bull.grp.m, sd=bull.grp.sd),0)
+  calves <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=calf.grp, mean=calf.grp.m, sd=calf.grp.sd),0)
+  spikes <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=spike.grp, mean=spike.grp.m, sd=spike.grp.sd),0)
+  cows <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=cow.grp, mean=cow.grp.m, sd=cow.grp.sd),0)
+
+  sim.obs.m <- as.data.frame(cbind(bulls, calves, spikes, cows))
+
+  # to make more realistic, if 3 or more bulls then a bachelor group
+  sim.obs.m <- sim.obs.m %>% mutate(cows = case_when(bulls >= 3 ~ 0,TRUE ~ cows))
+  sim.obs.m <- sim.obs.m %>% mutate(calves = case_when(bulls >= 3 ~ 0,TRUE ~ calves))
+  sim.obs.m <- sim.obs.m %>% mutate(spikes = case_when(bulls >= 3 ~ 0,TRUE ~ spikes))
+
+  # fill in rest of observation data frame
+  sim.obs.m$year <- rep(year, length.out=n.sghtblty.trls)
+  sim.obs.m$stratum <- stratum
+  sim.obs.m$subunit <- subunit
+  sim.obs.m$total <- sim.obs.m$bulls + sim.obs.m$calves + sim.obs.m$spikes + sim.obs.m$cows
+  sim.obs.m$grpsize <- sim.obs.m$total
+
+  # create voc category, ranging from 0 to 1 (proportion of veg)
+  sim.obs.m$covariate1 <- runif(n.sghtblty.trls, 0, 1)
+  colnames(sim.obs.m)[10] <- covariates[1]
+
+  # format to same order as example dataset - only works if only have voc as covariate
+  sim.obs.m <- sim.obs.m[c("year", "stratum", "subunit", "total", "cows", "calves", "bulls", "spikes","voc",
+                           "grpsize")]
+  return(sim.obs.m)
+
+}
+
+
+#- for Sechelt peninsula can use the default values of simulation for observation data frame
+
+# create 100 datasets of simulated Sechelt observation data
+sim.obs.Sechelt <- vector('list', 100)
+names(sim.obs.Sechelt) <- paste0('sim.obs.Sechelt', seq_along(sim.obs.Sechelt))
+for(i in seq_along(sim.obs.Sechelt)){
+  sim.obs.Sechelt.base <- sim.obs.m.fn()
+  sim.obs.Sechelt[[i]] <- sim.obs.Sechelt.base
+}
+
 
 ###--- create exp.m simulated data frame
 # assume if voc is <0.5 and group is >5 then 0.8 prob of seeing elk
@@ -165,3 +216,6 @@ boot.sim.est <- Sight.Est(observed~voc,
                       sampinfo = subset(sim.sampinfo.m),
                       method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
 print(format(round(boot.sim.est$est, 0), big.mark = ","), quote = FALSE)
+
+
+###--- need to create function that feeds into simulation paramters and then a loop to run 100 simulations per set of params
