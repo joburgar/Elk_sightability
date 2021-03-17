@@ -171,21 +171,40 @@ for(i in seq_along(sim.obs.Sechelt)){
 ###--- create exp.m simulated data frame
 # assume if voc is <0.5 and group is >5 then 0.8 prob of seeing elk
 # assume if voc is <0.5 and group is <5 then 0.7 prob of seeing elk
-# assume if voc is >0.5 and group is >5 then 0.5 prob of seeing elk
-# assume if voc is >0.5 and group is <5 then 0.4 prob of seeing elk
+# assume if voc is >0.5 and group is >5 then 0.4 prob of seeing elk
+# assume if voc is >0.5 and group is <5 then 0.3 prob of seeing elk
 
-sim.exp.m <- as.data.frame(matrix(nrow=20,ncol=4))
-colnames(sim.exp.m) <- c("year", "observed", "voc", "grpsize")
-sim.exp.m$year <- 2020
-sim.exp.m$voc <- runif(20, 0,1)
-sim.exp.m$grpsize <- round(abs(rnorm(20, mean = 16, sd = 10.4)),0)
-sim.exp.m$observed <- as.integer(1)
-sim.exp.m <- sim.exp.m %>% mutate(observed = case_when(voc < 0.5 & grpsize >5 ~ rbinom(1, size=1, 0.8),
-                                                                voc < 0.5 & grpsize <5 ~ rbinom(1, size=1, 0.7),
-                                                                voc > 0.5 & grpsize >5 ~ rbinom(1, size=1, 0.4),
-                                                                voc > 0.5 & grpsize <5 ~ rbinom(1, size=1, 0.3), TRUE ~ observed))
+glimpse(exp.m)
 
-glimpse(sim.exp.m)
+sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(0,42), grpsize.m=16, grpsize.sd=10.4, n.sghtblty.trls=20,
+                         cov.value=0.5, prob.sight=c(0.8, 0.7, 0.4, 0.3)){
+
+  sim.exp.m <- as.data.frame(matrix(nrow=n.sghtblty.trls,ncol=4))
+  colnames(sim.exp.m) <- c("year", "observed", covariates, "grpsize")
+  sim.exp.m$year <- rep(year, length.out=n.sghtblty.trls)
+  sim.exp.m$voc <- runif(n.sghtblty.trls, 0,1)
+  sim.exp.m$grpsize <-round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=grpsize[2], mean=grpsize.m, sd=grpsize.sd),0)
+
+  sim.exp.m$observed <- as.integer(1) # default to 1 to set up case_when function
+  sim.exp.m <- sim.exp.m %>% mutate(observed = case_when(voc < cov.value & grpsize >5 ~ rbinom(1, size=1, prob.sight[1]),
+                                                         voc < cov.value & grpsize <5 ~ rbinom(1, size=1, prob.sight[2]),
+                                                         voc > cov.value & grpsize >5 ~ rbinom(1, size=1, prob.sight[3]),
+                                                         voc > cov.value & grpsize <5 ~ rbinom(1, size=1, prob.sight[4]), TRUE ~ observed))
+  return(sim.exp.m)
+
+}
+
+sim.exp.m.fn()
+
+#- can use the default values of simulation for experimental data frame
+
+# create 100 datasets of simulated experimental (sightability trial) data
+sim.exp.trials <- vector('list', 100)
+names(sim.exp.trials) <- paste0('sim.exp.trials', seq_along(sim.exp.trials))
+for(i in seq_along(sim.exp.trials)){
+  sim.exp.trials.base <- sim.exp.m.fn()
+  sim.exp.trials[[i]] <- sim.exp.trials.base
+}
 
 head(sampinfo.m)
 # the inventory survey data
