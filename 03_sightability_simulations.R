@@ -197,7 +197,6 @@ sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(0,42), g
 sim.exp.m.fn()
 
 #- can use the default values of simulation for experimental data frame
-
 # create 100 datasets of simulated experimental (sightability trial) data
 sim.exp.trials <- vector('list', 100)
 names(sim.exp.trials) <- paste0('sim.exp.trials', seq_along(sim.exp.trials))
@@ -206,17 +205,28 @@ for(i in seq_along(sim.exp.trials)){
   sim.exp.trials[[i]] <- sim.exp.trials.base
 }
 
+
+###--- create simulation function for sampling (inventory survey) data frame
+# not sure this is necessary...
 head(sampinfo.m)
 # the inventory survey data
 # number of sampled units nh in each stratum
 # population Nh in each stratum
 
-sim.sampinfo.m <- as.data.frame(matrix(nrow=1,ncol=4))
-colnames(sim.sampinfo.m) <- c("year","stratum","Nh","nh")
-sim.sampinfo.m$year <- 2020
-sim.sampinfo.m$stratum <- 1
-sim.sampinfo.m$Nh <-220
-sim.sampinfo.m$nh <- 10
+
+sim.sampinfo.m.fn <- function(year=c(2020,2019), stratum=1, pop.size=222, nh=c(10,20)){
+  sim.sampinfo.m <- as.data.frame(matrix(nrow=length(year),ncol=4))
+  colnames(sim.sampinfo.m) <- c("year","stratum","Nh","nh")
+  sim.sampinfo.m$year <- rep(year, 1)
+  sim.sampinfo.m$stratum <- stratum
+  sim.sampinfo.m$Nh <-pop.size
+  sim.sampinfo.m$nh <- floor(runif(length(year), min=nh[1], max=nh[2]))
+
+  return(sim.sampinfo.m)
+}
+
+sim.sampinfo.m.fn()
+
 
 
 ###--- try fitting the mHT
