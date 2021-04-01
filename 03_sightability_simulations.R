@@ -93,21 +93,81 @@ print(format(round(boot.est$est, 0), big.mark = ","), quote = FALSE)
 # bull:cow ratio = 25:100
 
 #- function to estimate number of animals per age-sex class based on classification ratios
-
-est.sex.age.class.pop <- function(pop.size=222, ratio.value=30){
+pop.size <- 222
+est.sex.age.class.pop <- function(pop.size=pop.size, ratio.value=30){
   round(ratio.value / (ratio.value+100)*pop.size,0)
 }
 
-# est.bull.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 25)
-# est.calf.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 30)
-# est.spike.Sechelt <- est.sex.age.class.pop(pop.size = 222, ratio.value = 21)
-# est.cow.Sechelt <- 222 - (est.bull.Sechelt + est.calf.Sechelt + est.spike.Sechelt)
 
 # for random numbers use rnorm with mean and sd specified for sex/age-class, bound by range of group sizes
-# n = number of groups (i.e., sightability trials)
-sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
+# n = number of groups (i.e., # of groups seen during sightability trials)
+# sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
 
 # use these functions together to generate simluated sightability trial dataset
+
+###--- create exp.m simulated data frame
+# using a function to simulate between 50-60 sightability trials done over 2 years (2019 and 2020)
+# using only the covariate "visual obstruction" in the GLM
+# considering various sightability probabilities depending on the amount of "voc" or visual obstruction
+# used relatively general group size (mean, range, sd) values that could occur in multiple EPUs
+
+sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(1,42), grpsize.m=12, grpsize.sd=10, n.sghtblty.trls=sample(50:60,1),
+                         cov.value=c(25,50), prob.sight=c(0.95, 0.70, 0.55, 0.45, 0.30)){
+
+  sim.exp.m <- as.data.frame(matrix(nrow=n.sghtblty.trls,ncol=4))
+  colnames(sim.exp.m) <- c("year", "observed", covariates, "grpsize")
+  sim.exp.m$year <- rep(year, length.out=n.sghtblty.trls)
+
+  # use gamma distribution to create voc - considering nature of surveys, voc more likely to be skewed right (kurtosis)
+  # so might be useful to use rgamma (n = 100, shape = 4, scale = 8), rather than runif
+  sim.exp.m$voc <- round(rgamma(n = n.sghtblty.trls, shape = 4, scale = 8),0)
+  sim.exp.m <- sim.exp.m %>% mutate(voc = case_when(voc>100 ~ 100, TRUE ~ voc))
+
+  sim.exp.m$grpsize <-round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=grpsize[2], mean=grpsize.m, sd=grpsize.sd),0)
+
+
+  # assume if <=0.25 voc then 0.95 prob of seeing elk
+  # assume if >0.25 voc <=0.50 and group is >=5 then 0.70 prob of seeing elk
+  # assume if >0.25 voc <=0.50 and group is <5 then 0.55 prob of seeing elk
+  # assume if >0.50 voc and group is >=5 then 0.45 prob of seeing elk
+  # assume if >0.50 voc and group is <5 then 0.30 prob of seeing elk
+
+  sim.exp.m$observed <- as.integer(0) # default to 1 to set up case_when function
+  sim.exp.m <- sim.exp.m %>% mutate(observed = case_when(voc <= cov.value[1] ~ rbinom(1, size=1, prob.sight[1]),
+                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[2]),
+                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[3]),
+                                                         voc > cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[4]),
+                                                         voc > cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[5]), TRUE ~ observed))
+
+  sim.exp.m <- sim.exp.m %>% mutate(across(1:ncol(sim.exp.m), as.integer))
+
+  return(sim.exp.m)
+
+}
+
+# sim.exp.m.fn()
+
+#- can use the default values of simulation for experimental data frame
+
+# create 100 datasets of simulated experimental (sightability trial) data
+# first with sightabilty surveys over 2 years, assuming differnces in sighting so between 50-60 groups observed across years
+sim.exp.trials50 <- vector('list', 100)
+names(sim.exp.trials50) <- paste0('sim.exp.trials50', seq_along(sim.exp.trials50))
+for(i in seq_along(sim.exp.trials50)){
+  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(50:60,1))
+  sim.exp.trials50[[i]] <- sim.exp.trials.base
+}
+str(sim.exp.trials50[1])
+# output <- data.frame(lapply(sim.exp.trials50, colSums))
+
+# then assuming differnces in sighting so between 80-100 groups observed across years
+sim.exp.trials100 <- vector('list', 100)
+names(sim.exp.trials100) <- paste0('sim.exp.trials100', seq_along(sim.exp.trials100))
+for(i in seq_along(sim.exp.trials100)){
+  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(80:100,1))
+
+  sim.exp.trials100[[i]] <- sim.exp.trials.base
+}
 
 
 ###--- create simulted observation data.frame
@@ -115,21 +175,20 @@ sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
 # each row corresponds to an independently sighted group with animal-specific covariates
 # subunit is the sample plot identifier (EPU in our case?)
 # stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
-obs.m[1:5,]
-glimpse(obs.m)
+# to be realistic, create same "observed" category as in sim.exp.trials and only consider observed (1) in obs data frame
 
-sim.obs.m.fn <- function(year=c(2020,2019), stratum=1, subunit=1, bull.ratio=25, calf.ratio=30, spike.ratio=21, pop.size=222, covariates="voc", grpsize=c(0,42),
-                         bull.grp.m=0.3, bull.grp.sd=1.5, cow.grp.m=13, cow.grp.sd=10.4, calf.grp.m=3.3, calf.grp.sd=1.5, spike.grp.m=1.4, spike.grp.sd=1.0,
-                         n.sghtblty.trls=20){
+sim.obs.m.fn <- function(year=c(2020), stratum=1, subunit=1, bull.ratio=25, calf.ratio=30, spike.ratio=21, pop.size=222, covariates="voc", grpsize=c(0,23),
+                         bull.grp.m=1.2, bull.grp.sd=1.6, cow.grp.m=4.3, cow.grp.sd=4.5, calf.grp.m=1.9, calf.grp.sd=2.3, spike.grp.m=0.5, spike.grp.sd=0.8,
+                         n.grps.obs=40, cov.value=c(25,50), prob.sight=c(0.95, 0.70, 0.55, 0.45, 0.30)){
   bull.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = bull.ratio)
   calf.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = calf.ratio)
   spike.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = spike.ratio)
   cow.grp <- pop.size - (bull.grp + calf.grp + spike.grp)
 
-  bulls <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=bull.grp, mean=bull.grp.m, sd=bull.grp.sd),0)
-  calves <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=calf.grp, mean=calf.grp.m, sd=calf.grp.sd),0)
-  spikes <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=spike.grp, mean=spike.grp.m, sd=spike.grp.sd),0)
-  cows <- round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=cow.grp, mean=cow.grp.m, sd=cow.grp.sd),0)
+  bulls <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=bull.grp, mean=bull.grp.m, sd=bull.grp.sd),0)
+  calves <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=calf.grp, mean=calf.grp.m, sd=calf.grp.sd),0)
+  spikes <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=spike.grp, mean=spike.grp.m, sd=spike.grp.sd),0)
+  cows <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=cow.grp, mean=cow.grp.m, sd=cow.grp.sd),0)
 
   sim.obs.m <- as.data.frame(cbind(bulls, calves, spikes, cows))
 
@@ -139,112 +198,371 @@ sim.obs.m.fn <- function(year=c(2020,2019), stratum=1, subunit=1, bull.ratio=25,
   sim.obs.m <- sim.obs.m %>% mutate(spikes = case_when(bulls >= 3 ~ 0,TRUE ~ spikes))
 
   # fill in rest of observation data frame
-  sim.obs.m$year <- rep(year, length.out=n.sghtblty.trls)
+  sim.obs.m$year <- rep(year, length.out=n.grps.obs)
   sim.obs.m$stratum <- stratum
   sim.obs.m$subunit <- subunit
   sim.obs.m$total <- sim.obs.m$bulls + sim.obs.m$calves + sim.obs.m$spikes + sim.obs.m$cows
   sim.obs.m$grpsize <- sim.obs.m$total
 
   # create voc category, ranging from 0 to 1 (proportion of veg)
-  sim.obs.m$covariate1 <- runif(n.sghtblty.trls, 0, 1)
+  sim.obs.m$covariate1 <- round(rgamma(n = n.grps.obs, shape = 4, scale = 8),0)
   colnames(sim.obs.m)[10] <- covariates[1]
+  sim.obs.m <- sim.obs.m %>% mutate(voc = case_when(voc>100 ~ 100, TRUE ~ voc))
+
+
+  # create obs category, and then subset dataframe to only the observed groups
+  # use the same criteria for observing as in exp data frame
+  # assume if <=0.25 voc then 0.95 prob of seeing elk
+  # assume if >0.25 voc <=0.50 and group is >=5 then 0.70 prob of seeing elk
+  # assume if >0.25 voc <=0.50 and group is <5 then 0.55 prob of seeing elk
+  # assume if >0.50 voc and group is >=5 then 0.45 prob of seeing elk
+  # assume if >0.50 voc and group is <5 then 0.30 prob of seeing elk
+  sim.obs.m$observed <- as.integer(0) # default to 1 to set up case_when function
+  sim.obs.m <- sim.obs.m %>% mutate(observed = case_when(voc <= cov.value[1] ~ rbinom(1, size=1, prob.sight[1]),
+                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[2]),
+                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[3]),
+                                                         voc > cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[4]),
+                                                         voc > cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[5]), TRUE ~ observed))
+
+
+  sim.obs.m <- sim.obs.m %>% filter(observed==1)
+
 
   # format to same order as example dataset - only works if only have voc as covariate
   sim.obs.m <- sim.obs.m[c("year", "stratum", "subunit", "total", "cows", "calves", "bulls", "spikes","voc",
                            "grpsize")]
+
+  sim.obs.m <- sim.obs.m %>% mutate(across(1:ncol(sim.obs.m), as.integer))
+
+
   return(sim.obs.m)
 
 }
 
-
+sim.obs.m.fn()
 #- for Sechelt peninsula can use the default values of simulation for observation data frame
 
 # create 100 datasets of simulated Sechelt observation data
 sim.obs.Sechelt <- vector('list', 100)
 names(sim.obs.Sechelt) <- paste0('sim.obs.Sechelt', seq_along(sim.obs.Sechelt))
 for(i in seq_along(sim.obs.Sechelt)){
-  sim.obs.Sechelt.base <- sim.obs.m.fn()
+  sim.obs.Sechelt.base <- sim.obs.m.fn(pop.size = 222, n.grps.obs = 40)
   sim.obs.Sechelt[[i]] <- sim.obs.Sechelt.base
 }
 
 
-###--- create exp.m simulated data frame
-# assume if voc is <0.5 and group is >5 then 0.8 prob of seeing elk
-# assume if voc is <0.5 and group is <5 then 0.7 prob of seeing elk
-# assume if voc is >0.5 and group is >5 then 0.4 prob of seeing elk
-# assume if voc is >0.5 and group is <5 then 0.3 prob of seeing elk
-
-glimpse(exp.m)
-
-sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(0,42), grpsize.m=16, grpsize.sd=10.4, n.sghtblty.trls=20,
-                         cov.value=0.5, prob.sight=c(0.8, 0.7, 0.4, 0.3)){
-
-  sim.exp.m <- as.data.frame(matrix(nrow=n.sghtblty.trls,ncol=4))
-  colnames(sim.exp.m) <- c("year", "observed", covariates, "grpsize")
-  sim.exp.m$year <- rep(year, length.out=n.sghtblty.trls)
-  sim.exp.m$voc <- runif(n.sghtblty.trls, 0,1)
-  sim.exp.m$grpsize <-round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=grpsize[2], mean=grpsize.m, sd=grpsize.sd),0)
-
-  sim.exp.m$observed <- as.integer(1) # default to 1 to set up case_when function
-  sim.exp.m <- sim.exp.m %>% mutate(observed = case_when(voc < cov.value & grpsize >5 ~ rbinom(1, size=1, prob.sight[1]),
-                                                         voc < cov.value & grpsize <5 ~ rbinom(1, size=1, prob.sight[2]),
-                                                         voc > cov.value & grpsize >5 ~ rbinom(1, size=1, prob.sight[3]),
-                                                         voc > cov.value & grpsize <5 ~ rbinom(1, size=1, prob.sight[4]), TRUE ~ observed))
-  return(sim.exp.m)
-
+# create 100 datasets of simulated Skwawka observation data
+# 2020 estimated pop size 68
+sim.obs.Skwawka <- vector('list', 100)
+names(sim.obs.Skwawka) <- paste0('sim.obs.Skwawka', seq_along(sim.obs.Skwawka))
+for(i in seq_along(sim.obs.Skwawka)){
+  sim.obs.Skwawka.base <- sim.obs.m.fn(pop.size=68, n.grps.obs = 20)
+  sim.obs.Skwawka[[i]] <- sim.obs.Skwawka.base
 }
 
-sim.exp.m.fn()
-
-#- can use the default values of simulation for experimental data frame
-# create 100 datasets of simulated experimental (sightability trial) data
-sim.exp.trials <- vector('list', 100)
-names(sim.exp.trials) <- paste0('sim.exp.trials', seq_along(sim.exp.trials))
-for(i in seq_along(sim.exp.trials)){
-  sim.exp.trials.base <- sim.exp.m.fn()
-  sim.exp.trials[[i]] <- sim.exp.trials.base
-}
-
-
-###--- create simulation function for sampling (inventory survey) data frame
-# not sure this is necessary...
-head(sampinfo.m)
+sim.obs.Skwawka_sub <- Filter(function(x) colSums(x) > 0,sim.obs.Skwawka)
+str(sim.obs.Skwawka_sub)
+# tmp <- sim.obs.Sechelt[sim.obs.Sechelt]
+#
+# data.frame(lapply(sim.obs.Sechelt_sub, colSums))
+#
+###--- set the sampling inventory dataframe based on recent EPU inventory surveys
 # the inventory survey data
 # number of sampled units nh in each stratum
 # population Nh in each stratum
 
 
-sim.sampinfo.m.fn <- function(year=c(2020,2019), stratum=1, pop.size=222, nh=c(10,20)){
-  sim.sampinfo.m <- as.data.frame(matrix(nrow=length(year),ncol=4))
-  colnames(sim.sampinfo.m) <- c("year","stratum","Nh","nh")
-  sim.sampinfo.m$year <- rep(year, 1)
-  sim.sampinfo.m$stratum <- stratum
-  sim.sampinfo.m$Nh <-pop.size
-  sim.sampinfo.m$nh <- floor(runif(length(year), min=nh[1], max=nh[2]))
+# if want to simulate the number of sampled units in each stratum, but might be better to set
+# sim.sampinfo.m.fn <- function(year=c(2020,2019), stratum=1, pop.size=222, nh=c(10,20)){
+#   sim.sampinfo.m <- as.data.frame(matrix(nrow=length(year),ncol=4))
+#   colnames(sim.sampinfo.m) <- c("year","stratum","Nh","nh")
+#   sim.sampinfo.m$year <- rep(year, 1)
+#   sim.sampinfo.m$stratum <- stratum
+#   sim.sampinfo.m$Nh <-pop.size
+#   sim.sampinfo.m$nh <- floor(runif(length(year), min=nh[1], max=nh[2]))
+#
+#   return(sim.sampinfo.m)
+# }
 
-  return(sim.sampinfo.m)
+# sim.sampinfo.m.fn()
+set.sampinfo.Sechelt <- as.data.frame(matrix(NA,1,4))
+colnames(set.sampinfo.Sechelt) <- c("year","stratum","nh","Nh")
+set.sampinfo.Sechelt$year <- c(2020)
+set.sampinfo.Sechelt$stratum <- 1
+set.sampinfo.Sechelt$Nh <-c(155)
+set.sampinfo.Sechelt$nh <- 100 # set as 100, considering each transect flown as nh
+set.sampinfo.Sechelt <- as.data.frame(set.sampinfo.Sechelt %>% mutate(across(1:4, as.integer)))
+
+
+# sim.sampinfo.m.fn()
+set.sampinfo.Skwawka <- as.data.frame(matrix(NA,1,4))
+colnames(set.sampinfo.Skwawka) <- c("year","stratum","nh","Nh")
+set.sampinfo.Skwawka$year <- c(2020)
+set.sampinfo.Skwawka$stratum <- 1
+set.sampinfo.Skwawka$Nh <-c(49)
+set.sampinfo.Skwawka$nh <- 50 # set as 50, considering each transect flown as nh
+set.sampinfo.Skwawka <- as.data.frame(set.sampinfo.Skwawka %>% mutate(across(1:4, as.integer)))
+
+###--- try fitting the boot strapped mHT
+# this round has between 50-60 sightability trials, 100 simulations
+out.Sechelt50 <- vector('list', 100)
+names(out.Sechelt50) <- paste0('sim.Sechelt50_', seq_along(out.Sechelt50))
+for(i in seq_along(out.Sechelt50)){
+  out.Sechelt50.list <- Sight.Est(observed~voc,
+                                  odat = subset(sim.obs.Sechelt[[i]], year==2020),
+                                  sdat = sim.exp.trials50[[i]],
+                                  sampinfo = subset(set.sampinfo.Sechelt, year == 2020),
+                                  method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+  out.Sechelt50[[i]] <- out.Sechelt50.list
 }
 
-sim.sampinfo.m.fn()
+saveRDS(out.Sechelt50,"mHT_rd1_Sechelt50.RDS")
+
+# this round has 80-100 sightability trials, 100 simulations
+out.Sechelt100 <- vector('list', 100)
+names(out.Sechelt100) <- paste0('out.Sechelt100_', seq_along(out.Sechelt100))
+for(i in seq_along(out.Sechelt100)){
+  out.Sechelt.list <- Sight.Est(observed~voc,
+                                  odat = subset(sim.obs.Sechelt[[i]], year==2020),
+                                  sdat = sim.exp.trials100[[i]],
+                                  sampinfo = subset(set.sampinfo.Sechelt, year == 2020),
+                                  method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+  out.Sechelt100[[i]] <- out.Sechelt.list
+}
+
+saveRDS(out.Sechelt100,"mHT_rd1_Sechelt100.RDS")
+
+# this round has 50-60 sightability trials, 100 simulations
+out.Skwawka50 <- vector('list', 100)
+names(out.Skwawka50) <- paste0('out.Skwawka50_', seq_along(out.Skwawka50))
+for(i in seq_along(out.Skwawka50)){
+  out.Skwawka.list <- Sight.Est(observed~voc,
+                                  odat = subset(sim.obs.Skwawka[[i]], year==2020),
+                                  sdat = sim.exp.trials50[[i]],
+                                  sampinfo = subset(set.sampinfo.Skwawka, year == 2020),
+                                  method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+  out.Skwawka50[[i]] <- out.Skwawka.list
+}
+
+saveRDS(out.Skwawka50,"mHT_rd1_Skwawka50.RDS")
+
+
+################################################################################################
+###--- view simulation output
+out.Sechelt100 <- readRDS("mHT_rd1_Sechelt100.RDS")
+out.Sechelt50 <- readRDS("mHT_rd1_Sechelt50.RDS")
+
+# only 53 simulations (must have been 0 observed in simulated obs dataframe)
+# for now, just subset to 50 (may want to delete the 0 in the observed dataframe and rerun)
+out.Sechelt100_50 <- out.Sechelt100[1:50]
+out.Sechelt50_50 <- out.Sechelt50[1:50]
+
+
+tau.Sechelt50 <- tau.Sechelt100 <- matrix(NA,100,3)
+count <- 1
+for(i in 1:nrow(tau.Sechelt50)){
+  tau.Sechelt50[count,] <- unlist(summary(out.Sechelt50[[i]]))
+
+for(i in 1:nrow(tau.Sechelt100))
+    tau.Sechelt100[count,] <- unlist(summary(out.Sechelt100[[i]]))
+
+count <- count + 1
+}
+
+
+rownames(tau.Sechelt50) <- rownames(tau.Sechelt100) <- 1:100
+colnames(tau.Sechelt50) <- colnames(tau.Sechelt100) <- c("tau.hat","LCL","UCL")
+(tau.Sechelt50 <- apply(tau.Sechelt50, 1:2,
+                   FUN=function(x){as.numeric(gsub(",", "", x, fixed = TRUE))}))
+(tau.Sechelt100 <-   (tau.Sechelt50 <- apply(tau.Sechelt50, 1:2,
+                                FUN = function(x){as.numeric(gsub(",", "", x, fixed = TRUE))})))
+
+
+tau.Sechelt50 <- as.data.frame(tau.Sechelt50)
+tau.Sechelt50_use <- tau.Sechelt50[-13,]
+tau.Sechelt50_use <- tau.Sechelt50_use[order(tau.Sechelt50_use$tau.hat),]
+
+Sechelt50_simsplot = ggplot(tau.Sechelt50, aes(x = reorder(row.names(tau.Sechelt50),tau.hat), y=tau.hat))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Sechelt50_simsplot
+
+tau.Sechelt50_sub <- tau.Sechelt50 %>% filter(tau.hat <300) # only 16 / 100 with pop estimates < 300
+Sechelt50_sub_simsplot = ggplot(tau.Sechelt50_sub, aes(x = reorder(row.names(tau.Sechelt50_sub),tau.hat), y=tau.hat))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50_sub), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Sechelt50_sub_simsplot
+
+
+###--- for Skwawka
+# only 53 simulations (must have been 0 observed in simulated obs dataframe)
+# for now, just subset to 50 (may want to delete the 0 in the observed dataframe and rerun)
+out.Skwawka50_50 <- out.Skwawka50[1:50]
+
+tau.Skwawka50  <- matrix(NA,100,3)
+count <- 1
+for(i in 1:nrow(tau.Skwawka50)){
+  tau.Skwawka50[count,] <- unlist(summary(out.Skwawka50[[i]]))
+  count <- count + 1
+}
+
+
+rownames(tau.Skwawka50) <- 1:100
+colnames(tau.Skwawka50) <- c("tau.hat","LCL","UCL")
+(tau.Skwawka50 <- apply(tau.Skwawka50, 1:2,
+                        FUN=function(x){as.numeric(gsub(",", "", x, fixed = TRUE))}))
+(tau.Skwawka50 <- apply(tau.Skwawka50, 1:2,
+                                             FUN = function(x){as.numeric(gsub(",", "", x, fixed = TRUE))}))
+
+
+tau.Skwawka50 <- as.data.frame(tau.Skwawka50)
+pop.size.Skwawka <- 68
+
+Skwawka50_simsplot = ggplot(tau.Skwawka50, aes(x = reorder(row.names(tau.Skwawka50),tau.hat), y=tau.hat))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Skwawka50), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size.Skwawka, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Skwawka50_simsplot
+
+tau.Skwawka50_sub <- tau.Skwawka50 %>% filter(tau.hat <100) # only 17 /100 with pop estimates < 100 (and none converged / no CI)
+Skwawka50_sub_simsplot = ggplot(tau.Skwawka50_sub, aes(x = reorder(row.names(tau.Skwawka50_sub),tau.hat), y=tau.hat))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Skwawka50_sub), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size.Skwawka, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Skwawka50_sub_simsplot
+
+# save.image("mHT_sightability_simulations.RData")
+# load("mHT_sightability_simulations.RData")
+
+################################################################################################
+###--- create similar simulation data for Bayesian model
+# from Fieberg README:
+# 1.  sight_dat.csv = Sightability survey data:  124 records
+# x = visual obstruction measurements associated with the test trial data used to develop the sightability model
+# z = detection indicator (1 if the group was observed, 0 otherwise)
+
+# currently have sim.exp.trials50 / sim.exp.trials100
+str(sim.exp.trials50)
+
+# create a list of the 100 sim.exp.trials50 in the same format as Fieberg's sight_dat csv
+sight_dat50 <- vector('list', 100)
+names(sight_dat50) <- paste0('sight_dat50_', seq_along(sight_dat50))
+for(i in seq_along(sight_dat50)){
+
+  sight_dat50.list <-  sim.exp.trials50[[i]]
+  sight_dat50.list <- sight_dat50.list[c("voc", "observed")]
+  colnames(sight_dat50.list) <- c("x.tilde", "z.tilde")
+
+  sight_dat50[[i]] <-sight_dat50.list
+}
+
+sight_dat50[[1]] # check - looks the same as Fieberg's sight_dat csv
+
+# 2.  oper_dat.csv:  Operational survey data:  4380 records
+# (includes observed and augmented data for the annual surveys in  2006 and 2007 combined).
+# Augmented data records have NA (missing) for x, y, q.
+# x = visual obstruction measurements
+# ym1 = y-1, where y = observed group size
+# h = stratum identifier (1, 2, 3 correspond to low, medium and high density strata)
+# q = indicator variable that represents whether the group belongs to the study population (equal to 1 for all observed groups and NA for all augmented groups).
+# z = detection indicator (equal to 1 if the group was observed during the operational survey and 0 otherwise)
+# subunits = unique plot identifier (for all sampled plots).
+# yr = year of observation (1 = 2006, 2= 2007)
+
+# currently have sim.obs.Sechelt and sim.obs.Skwawka
+# first create very simple oper_dat files for each EPU separately and then combine to see if better power
+sim.obs.Sechelt[[1]]
+
+oper_dat.Sechelt <- vector('list', 100)
+names(oper_dat.Sechelt) <- paste0('oper_dat.Sechelt_', seq_along(oper_dat.Sechelt))
+for(i in seq_along(oper_dat.Sechelt)){
+
+  oper_dat.Sechelt.list <-  sim.obs.Sechelt[[i]]
+  oper_dat.Sechelt.list$q <- 1
+  oper_dat.Sechelt.list$z <- 1
+  oper_dat.Sechelt.list$ym1 <- oper_dat.Sechelt.list$grpsize - 1
+  oper_dat.Sechelt.list$yr <-1
+  oper_dat.Sechelt.list <- oper_dat.Sechelt.list[c("voc","ym1","stratum","q","z","yr","subunit")]
+  colnames(oper_dat.Sechelt.list) <- c("x", "ym1", "h","q","z","yr","subunits")
+
+  oper_dat.Sechelt[[i]] <-oper_dat.Sechelt.list
+}
+
+oper_dat.Sechelt[[1]] # check - looks the same as Fieberg's oper_dat csv
+
+# 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
+# h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
+# yr.plots = year the plot was sampled (1 = 2006, 2= 2007)
+
+# 4.  scalar_dat.csv:  Scalars:
+# R = number of sightability trials (124)
+# Ngroups = number of observed and augmented groups for the 2006 and 2007 annual operational surveys (4380)
+# Nsubunits.yr = total number of plots sampled in 2006 and 2007 combined = 77
+# ny1 = number of groups associated with the annual survey in 2006 (year 1) = 2060
 
 
 
-###--- try fitting the mHT
-sim.est.2020 <- Sight.Est(observed~voc,
-                      odat = subset(sim.obs.m),
-                      sdat = subset(sim.exp.m),
-                      sampinfo = subset(sim.sampinfo.m),
-                      method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = FALSE)
-print(sim.est.2020)
-print(format(round(sim.est.2020$est, 0), big.mark = ","), quote = FALSE)
+
+#############################################################
+###--- RUNNING 3 CHAINS IN PARALLEL USING JAGS IMPLEMENTATION
+dat <- list(n=n, X=X2, M=M, J=nrow(n), K=ncol(n), xlim=xlims.scaled, ylim=ylims.scaled, area=areakm2.scaled, oper=oper)
+
+# specify initial values
+init <-  function() {  list(sigma=rnorm(1,10), lam0=runif(1) , z=rep(1,dat$M)) }
+
+# specify parameters to monitor
+pars <- c("sigma","lam0","psi","D","N")
+
+# model here - from Fieberg
+
+# # run model in jags (and calculate model run time)
+# library(rjags)
+# library(coda)
+# library(parallel)
+#
+# (start.time <- Sys.time())
+# cl3 <- makeCluster(3)
+# clusterExport(cl3, c("dat","init","pars"))
+# CA.JAGS <- clusterEvalQ(cl3, {
+#   library(rjags)
+#   jm2 <- jags.model("CA.txt", data=dat, inits=init, n.chains=1, n.adapt=1000)
+#   jc2 <- coda.samples(jm2, pars, n.iter=80000)
+#   return(as.mcmc(jc2))
+# })
+# mc.CA2_M200 <- mcmc.list(CA.JAGS)
+#
+# (end.time <- Sys.time())
+# mc.CA2_M200.ET <- difftime(end.time, start.time, units='hours')
+#
+# setwd("C:/Users/JBurgar/Google Drive/Richardson Wildfire Project/3. Data/3.4 Data Analysis/3.4.3 Output") # set ouptput directory
+# save("mc.CA2_M200",file="mc.CA2_M200.RData")
+# save("mc.CA2_M200.ET",file="mc.CA2_M200.ET.RData")
+# stopCluster(cl3)
 
 
-boot.sim.est <- Sight.Est(observed~voc,
-                      odat = subset(sim.obs.m),
-                      sdat = subset(sim.exp.m),
-                      sampinfo = subset(sim.sampinfo.m),
-                      method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
-print(format(round(boot.sim.est$est, 0), big.mark = ","), quote = FALSE)
+############################################################
 
+###--- Model = Weakly Informative prior
 
-###--- need to create function that feeds into simulation paramters and then a loop to run 100 simulations per set of params
