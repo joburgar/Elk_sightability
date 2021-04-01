@@ -16,7 +16,7 @@
 # written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 17-Feb-2021
 #####################################################################################
 
-.libPaths("C:/Program Files/R/R-3.6.0/library") # to ensure reading/writing libraries from C drive
+.libPaths("C:/Program Files/R/R-4.0.5/library") # to ensure reading/writing libraries from C drive
 tz = Sys.timezone() # specify timezone in BC
 
 # overall process:
@@ -26,7 +26,7 @@ tz = Sys.timezone() # specify timezone in BC
 
 # Load Packages
 list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo",
-                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm")
+                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "jagsUI")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
