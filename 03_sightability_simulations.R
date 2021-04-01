@@ -352,12 +352,6 @@ saveRDS(out.Skwawka50,"mHT_rd1_Skwawka50.RDS")
 out.Sechelt100 <- readRDS("mHT_rd1_Sechelt100.RDS")
 out.Sechelt50 <- readRDS("mHT_rd1_Sechelt50.RDS")
 
-# only 53 simulations (must have been 0 observed in simulated obs dataframe)
-# for now, just subset to 50 (may want to delete the 0 in the observed dataframe and rerun)
-out.Sechelt100_50 <- out.Sechelt100[1:50]
-out.Sechelt50_50 <- out.Sechelt50[1:50]
-
-
 tau.Sechelt50 <- tau.Sechelt100 <- matrix(NA,100,3)
 count <- 1
 for(i in 1:nrow(tau.Sechelt50)){
@@ -379,19 +373,21 @@ colnames(tau.Sechelt50) <- colnames(tau.Sechelt100) <- c("tau.hat","LCL","UCL")
 
 
 tau.Sechelt50 <- as.data.frame(tau.Sechelt50)
-tau.Sechelt50_use <- tau.Sechelt50[-13,]
-tau.Sechelt50_use <- tau.Sechelt50_use[order(tau.Sechelt50_use$tau.hat),]
+# tau.Sechelt50_use <- tau.Sechelt50[-13,] # removes an outlier for graphing
 
 Sechelt50_simsplot = ggplot(tau.Sechelt50, aes(x = reorder(row.names(tau.Sechelt50),tau.hat), y=tau.hat))+
   geom_point(colour="black", shape=15, size=3)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+       panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   ylab(expression(paste("Population Estimate ± 95 CI"))) +
   geom_linerange(aes(row.names(tau.Sechelt50), ymin = LCL, ymax = UCL)) +
   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))
-Sechelt50_simsplot
+  theme(axis.text.y = element_text(size=14)) +
+  ylim(0,10000)
+
+ggsave(Sechelt50_simsplot, file="out/Sechelt50_simsplots.PNG")
+
 
 tau.Sechelt50_sub <- tau.Sechelt50 %>% filter(tau.hat <300) # only 16 / 100 with pop estimates < 300
 Sechelt50_sub_simsplot = ggplot(tau.Sechelt50_sub, aes(x = reorder(row.names(tau.Sechelt50_sub),tau.hat), y=tau.hat))+
@@ -405,12 +401,10 @@ Sechelt50_sub_simsplot = ggplot(tau.Sechelt50_sub, aes(x = reorder(row.names(tau
   theme(axis.text.y = element_text(size=14))
 Sechelt50_sub_simsplot
 
+ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_sub_simsplots.PNG")
+
 
 ###--- for Skwawka
-# only 53 simulations (must have been 0 observed in simulated obs dataframe)
-# for now, just subset to 50 (may want to delete the 0 in the observed dataframe and rerun)
-out.Skwawka50_50 <- out.Skwawka50[1:50]
-
 tau.Skwawka50  <- matrix(NA,100,3)
 count <- 1
 for(i in 1:nrow(tau.Skwawka50)){
@@ -438,8 +432,11 @@ Skwawka50_simsplot = ggplot(tau.Skwawka50, aes(x = reorder(row.names(tau.Skwawka
   geom_linerange(aes(row.names(tau.Skwawka50), ymin = LCL, ymax = UCL)) +
   geom_hline(yintercept=pop.size.Skwawka, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))
+  theme(axis.text.y = element_text(size=14))+
+  ylim(0,10000)
 Skwawka50_simsplot
+ggsave(Skwawka50_simsplot, file="out/Skwawka50_simsplot.PNG")
+
 
 tau.Skwawka50_sub <- tau.Skwawka50 %>% filter(tau.hat <100) # only 17 /100 with pop estimates < 100 (and none converged / no CI)
 Skwawka50_sub_simsplot = ggplot(tau.Skwawka50_sub, aes(x = reorder(row.names(tau.Skwawka50_sub),tau.hat), y=tau.hat))+
@@ -452,6 +449,7 @@ Skwawka50_sub_simsplot = ggplot(tau.Skwawka50_sub, aes(x = reorder(row.names(tau
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
   theme(axis.text.y = element_text(size=14))
 Skwawka50_sub_simsplot
+ggsave(Skwawka50_sub_simsplot, file="out/Skwawka50_sub_simsplot.PNG")
 
 # save.image("mHT_sightability_simulations.RData")
 # load("mHT_sightability_simulations.RData")
@@ -462,7 +460,7 @@ Skwawka50_sub_simsplot
 # 1.  sight_dat.csv = Sightability survey data:  124 records
 # x = visual obstruction measurements associated with the test trial data used to develop the sightability model
 # z = detection indicator (1 if the group was observed, 0 otherwise)
-
+# the tilde '~' distinguishes data collected during the sightability trials from those collected during the operational surveys
 # currently have sim.exp.trials50 / sim.exp.trials100
 str(sim.exp.trials50)
 
@@ -473,6 +471,7 @@ for(i in seq_along(sight_dat50)){
 
   sight_dat50.list <-  sim.exp.trials50[[i]]
   sight_dat50.list <- sight_dat50.list[c("voc", "observed")]
+  sight_dat50.list$voc <- sight_dat50.list$voc * 0.01 # change to proportion for consistency with Fieberg code
   colnames(sight_dat50.list) <- c("x.tilde", "z.tilde")
 
   sight_dat50[[i]] <-sight_dat50.list
@@ -493,21 +492,30 @@ sight_dat50[[1]] # check - looks the same as Fieberg's sight_dat csv
 
 # currently have sim.obs.Sechelt and sim.obs.Skwawka
 # first create very simple oper_dat files for each EPU separately and then combine to see if better power
-sim.obs.Sechelt[[1]]
 
 oper_dat.Sechelt <- vector('list', 100)
 names(oper_dat.Sechelt) <- paste0('oper_dat.Sechelt_', seq_along(oper_dat.Sechelt))
 for(i in seq_along(oper_dat.Sechelt)){
 
-  oper_dat.Sechelt.list <-  sim.obs.Sechelt[[i]]
-  oper_dat.Sechelt.list$q <- 1
-  oper_dat.Sechelt.list$z <- 1
-  oper_dat.Sechelt.list$ym1 <- oper_dat.Sechelt.list$grpsize - 1
-  oper_dat.Sechelt.list$yr <-1
-  oper_dat.Sechelt.list <- oper_dat.Sechelt.list[c("voc","ym1","stratum","q","z","yr","subunit")]
-  colnames(oper_dat.Sechelt.list) <- c("x", "ym1", "h","q","z","yr","subunits")
+  # need to add in augmented NA values
 
-  oper_dat.Sechelt[[i]] <-oper_dat.Sechelt.list
+  oper_dat.Sechelt.obs <-  sim.obs.Sechelt[[i]]
+  oper_dat.Sechelt.obs$q <- 1
+  oper_dat.Sechelt.obs$z <- 1
+  oper_dat.Sechelt.obs$ym1 <- oper_dat.Sechelt.obs$grpsize - 1
+  oper_dat.Sechelt.obs$yr <-1
+  oper_dat.Sechelt.obs <- oper_dat.Sechelt.obs[c("voc","ym1","stratum","q","z","yr","subunit")]
+  oper_dat.Sechelt.obs$voc <- oper_dat.Sechelt.obs$voc * 0.01 # change to proportion for consistency with Fieberg code
+  colnames(oper_dat.Sechelt.obs) <- c("x", "ym1", "h","q","z","yr","subunits")
+
+  oper_dat.Sechelt.aug <-  as.data.frame(matrix(NA, 100-nrow(sim.obs.Sechelt[[1]]),7))
+  colnames(oper_dat.Sechelt.aug) <- c("x", "ym1", "h","q","z","yr","subunits")
+  oper_dat.Sechelt.aug$h <- 1
+  oper_dat.Sechelt.aug$z <- 0
+  oper_dat.Sechelt.aug$yr <-1
+  oper_dat.Sechelt.aug$subunits <- 1
+
+  oper_dat.Sechelt[[i]] <- rbind(oper_dat.Sechelt.obs, oper_dat.Sechelt.aug)
 }
 
 oper_dat.Sechelt[[1]] # check - looks the same as Fieberg's oper_dat csv
@@ -516,53 +524,92 @@ oper_dat.Sechelt[[1]] # check - looks the same as Fieberg's oper_dat csv
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
 # yr.plots = year the plot was sampled (1 = 2006, 2= 2007)
 
+plot_dat_Sechelt <- as.data.frame(matrix(NA,100,2))
+colnames(plot_dat_Sechelt) <- c("h.plots","yr.plots")
+
+# unstratified survey so all h.plots = 1, using only 2020 data so all yr.plots also 1
+plot_dat_Sechelt$h.plots <- plot_dat_Sechelt$yr.plots <- 1
+
 # 4.  scalar_dat.csv:  Scalars:
 # R = number of sightability trials (124)
 # Ngroups = number of observed and augmented groups for the 2006 and 2007 annual operational surveys (4380)
 # Nsubunits.yr = total number of plots sampled in 2006 and 2007 combined = 77
 # ny1 = number of groups associated with the annual survey in 2006 (year 1) = 2060
 
+###--- for list of scalar_dat for simulations
+scalar_dat_Sechelt50  <- as.data.frame(matrix(NA,100,4))
+colnames(scalar_dat_Sechelt50) <- c("R","Ngroups","Nsubunits.yr","ny1")
 
+# set the top most number of groups observed between 50-60 for sim.obs.Sechelt so can comfortably augment to 100
+scalar_dat_Sechelt50$Ngroups <- 100  # observed and augmented groups for 2020 survey
+scalar_dat_Sechelt50$Nsubunits.yr <- set.sampinfo.Sechelt$nh # total number of plots surveyed in 2020
 
+count <- 1
+for(i in 1:nrow(scalar_dat_Sechelt50)){
+  scalar_dat_Sechelt50[count,1] <- nrow(sim.exp.trials50[[i]]) # number of sightabilty trials = nrow for each sim.exp.trials50
+  scalar_dat_Sechelt50[count,4] <- nrow(sim.obs.Sechelt[[i]])  # number of groups associated with inventory survey in 2020
+  count <- count + 1
+}
+scalar_dat_Sechelt50
+# scalar_dat_Sechelt50 <- as.data.frame(scalar_dat_Sechelt50 %>% mutate(across(1:4, as.integer)))
 
 #############################################################
 ###--- RUNNING 3 CHAINS IN PARALLEL USING JAGS IMPLEMENTATION
-dat <- list(n=n, X=X2, M=M, J=nrow(n), K=ncol(n), xlim=xlims.scaled, ylim=ylims.scaled, area=areakm2.scaled, oper=oper)
+#
+# round(dnorm(0.00000, 0.1)*100,0)
+# rgamma(n = 1, shape = 4, scale = 8)
+# dgamma(4,8)*100
+# dgamma(6,9)
+
+oper_dat.Sechelt[[1]]
+
+dat <- list(x.tilde=sight_dat50[[i]]$x.tilde, z.tilde=sight_dat50[[i]]$z.tilde, #sight_dat
+            x=oper_dat.Sechelt[[i]]$x, ym1=oper_dat.Sechelt[[i]]$ym1, h=oper_dat.Sechelt[[i]]$h, q=oper_dat.Sechelt[[i]]$q, z=oper_dat.Sechelt[[i]]$z, yr=oper_dat.Sechelt[[i]]$yr, subunits=oper_dat.Sechelt[[i]]$subunits, # oper_dat
+            h.plots=plot_dat_Sechelt$h.plots, yr.plots=plot_dat_Sechelt$yr.plots, # plot_dat
+            R=scalar_dat_Sechelt50[i,]$R, Ngroups=scalar_dat_Sechelt50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Sechelt50[i,]$Nsubunits.yr, ny1=scalar_dat_Sechelt50[i,]$ny1) # scalar_dat
+
+# dat.list <- list(C=data$C, nsite=data$nsite, nmonth=data$nmonth, cov1=data$cov1)
+#
+# win.data.CO0 <- vector('list', 200)
+# names(win.data.CO0) <- paste0('win.data', seq_along(win.data.CO0))
+# for(i in seq_along(win.data.CO0)){
+#   win.data.CO0.list <- list(C=CO.S0[[i]]$C, nsite=CO.S0[[i]]$nsite, nmonth=CO.S0[[i]]$nmonth, cov1=CO.S0[[i]]$cov1)
+#   win.data.CO0[[i]] <- win.data.CO0.list
+# }
+
 
 # specify initial values
-init <-  function() {  list(sigma=rnorm(1,10), lam0=runif(1) , z=rep(1,dat$M)) }
+inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
-# specify parameters to monitor
-pars <- c("sigma","lam0","psi","D","N")
+# inits <- function()list(mu=runif(1,0,4), beta1=runif(1,-2,2), alpha=runif(24,-2,2), eps=runif(12,-2,2))
 
-# model here - from Fieberg
+# Parameters monitored
+params <- c("tau.samp1", "tau.samp2", "bo", "bvoc")
+params <- c("tau.samp", "bo", "bvoc")
 
-# # run model in jags (and calculate model run time)
-# library(rjags)
-# library(coda)
-# library(parallel)
+# MCMC settings
+ni <- 40000 # build to 40000
+nt <- 2     # 50% thinning rate (discard every 2nd iteration)
+nb <- 20000 # build to 20000
+nc <- 3
+
+test <- jags(dat, inits, params, "beta_binom_model_elksim.txt",
+             n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+             parallel=TRUE, n.cores=3)
+
+# now need to run 100 simulations using simulated data
+
+# ###--- execute JAGS models
+# library(jagsUI)
 #
-# (start.time <- Sys.time())
-# cl3 <- makeCluster(3)
-# clusterExport(cl3, c("dat","init","pars"))
-# CA.JAGS <- clusterEvalQ(cl3, {
-#   library(rjags)
-#   jm2 <- jags.model("CA.txt", data=dat, inits=init, n.chains=1, n.adapt=1000)
-#   jc2 <- coda.samples(jm2, pars, n.iter=80000)
-#   return(as.mcmc(jc2))
-# })
-# mc.CA2_M200 <- mcmc.list(CA.JAGS)
+# # 200 runs of base data 24 sites @ 12 months
+# jags_out.Sechelt50 <- vector('list', 200)
+# names(jags_out.Sechelt50) <- paste0('win.data', seq_along(out.CO0))
+# for(i in seq_along(jags_out.Sechelt50)){
+#   jags_out.Sechelt50.list <- jags(dat[[i]], inits.CO0, params, "beta_binom_model_elksim.txt",
+#                        n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+#                        parallel=TRUE, n.cores=3)
+#   jags_out.Sechelt50[[i]] <- jags_out.Sechelt50.list
+# }
+# save("out.CO0",file="Simout.CO0.RData") # MB
 #
-# (end.time <- Sys.time())
-# mc.CA2_M200.ET <- difftime(end.time, start.time, units='hours')
-#
-# setwd("C:/Users/JBurgar/Google Drive/Richardson Wildfire Project/3. Data/3.4 Data Analysis/3.4.3 Output") # set ouptput directory
-# save("mc.CA2_M200",file="mc.CA2_M200.RData")
-# save("mc.CA2_M200.ET",file="mc.CA2_M200.ET.RData")
-# stopCluster(cl3)
-
-
-############################################################
-
-###--- Model = Weakly Informative prior
-
