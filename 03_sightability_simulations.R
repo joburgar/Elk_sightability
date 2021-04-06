@@ -508,7 +508,7 @@ for(i in seq_along(oper_dat.Sechelt)){
   oper_dat.Sechelt.obs$voc <- oper_dat.Sechelt.obs$voc * 0.01 # change to proportion for consistency with Fieberg code
   colnames(oper_dat.Sechelt.obs) <- c("x", "ym1", "h","q","z","yr","subunits")
 
-  oper_dat.Sechelt.aug <-  as.data.frame(matrix(NA, 100-nrow(sim.obs.Sechelt[[1]]),7))
+  oper_dat.Sechelt.aug <-  as.data.frame(matrix(NA, 100-nrow(sim.obs.Sechelt[[i]]),7))
   colnames(oper_dat.Sechelt.aug) <- c("x", "ym1", "h","q","z","yr","subunits")
   oper_dat.Sechelt.aug$h <- 1
   oper_dat.Sechelt.aug$z <- 0
@@ -518,7 +518,7 @@ for(i in seq_along(oper_dat.Sechelt)){
   oper_dat.Sechelt[[i]] <- rbind(oper_dat.Sechelt.obs, oper_dat.Sechelt.aug)
 }
 
-oper_dat.Sechelt[[1]] # check - looks the same as Fieberg's oper_dat csv
+oper_dat.Sechelt[[2]] # check - looks the same as Fieberg's oper_dat csv
 
 # 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
@@ -555,37 +555,25 @@ scalar_dat_Sechelt50
 
 #############################################################
 ###--- RUNNING 3 CHAINS IN PARALLEL USING JAGS IMPLEMENTATION
-#
-# round(dnorm(0.00000, 0.1)*100,0)
-# rgamma(n = 1, shape = 4, scale = 8)
-# dgamma(4,8)*100
-# dgamma(6,9)
 
-oper_dat.Sechelt[[1]]
+# Bundle data
 
-dat <- list(x.tilde=sight_dat50[[i]]$x.tilde, z.tilde=sight_dat50[[i]]$z.tilde, #sight_dat
-            x=oper_dat.Sechelt[[i]]$x, ym1=oper_dat.Sechelt[[i]]$ym1, h=oper_dat.Sechelt[[i]]$h, q=oper_dat.Sechelt[[i]]$q, z=oper_dat.Sechelt[[i]]$z, yr=oper_dat.Sechelt[[i]]$yr, subunits=oper_dat.Sechelt[[i]]$subunits, # oper_dat
-            h.plots=plot_dat_Sechelt$h.plots, yr.plots=plot_dat_Sechelt$yr.plots, # plot_dat
-            R=scalar_dat_Sechelt50[i,]$R, Ngroups=scalar_dat_Sechelt50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Sechelt50[i,]$Nsubunits.yr, ny1=scalar_dat_Sechelt50[i,]$ny1) # scalar_dat
-
-# dat.list <- list(C=data$C, nsite=data$nsite, nmonth=data$nmonth, cov1=data$cov1)
-#
-# win.data.CO0 <- vector('list', 200)
-# names(win.data.CO0) <- paste0('win.data', seq_along(win.data.CO0))
-# for(i in seq_along(win.data.CO0)){
-#   win.data.CO0.list <- list(C=CO.S0[[i]]$C, nsite=CO.S0[[i]]$nsite, nmonth=CO.S0[[i]]$nmonth, cov1=CO.S0[[i]]$cov1)
-#   win.data.CO0[[i]] <- win.data.CO0.list
-# }
-
+bundle.data <- vector('list', 100)
+names(bundle.data) <- paste0('bundle.data_', seq_along(bundle.data))
+for(i in seq_along(bundle.data)){
+  bundle.data.list <- list(x.tilde=sight_dat50[[i]]$x.tilde, z.tilde=sight_dat50[[i]]$z.tilde, #sight_dat
+                           x=oper_dat.Sechelt[[i]]$x, ym1=oper_dat.Sechelt[[i]]$ym1, h=oper_dat.Sechelt[[i]]$h, q=oper_dat.Sechelt[[i]]$q, z=oper_dat.Sechelt[[i]]$z, yr=oper_dat.Sechelt[[i]]$yr, subunits=oper_dat.Sechelt[[i]]$subunits, # oper_dat
+                           h.plots=plot_dat_Sechelt$h.plots, yr.plots=plot_dat_Sechelt$yr.plots, # plot_dat
+                           R=scalar_dat_Sechelt50[i,]$R, Ngroups=scalar_dat_Sechelt50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Sechelt50[i,]$Nsubunits.yr, ny1=scalar_dat_Sechelt50[i,]$ny1) # scalar_dat
+  bundle.data[[i]] <- bundle.data.list
+}
 
 # specify initial values
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
-# inits <- function()list(mu=runif(1,0,4), beta1=runif(1,-2,2), alpha=runif(24,-2,2), eps=runif(12,-2,2))
-
 # Parameters monitored
-params <- c("tau.samp1", "tau.samp2", "bo", "bvoc")
-params <- c("tau.samp", "bo", "bvoc")
+# params <- c("tau.samp1", "tau.samp2", "bo", "bvoc") # for when there are 2 or more years of data
+params <- c("tau.samp", "bo", "bvoc") # for current situation, simulating for only 1 year of data
 
 # MCMC settings
 ni <- 40000 # build to 40000
@@ -593,23 +581,103 @@ nt <- 2     # 50% thinning rate (discard every 2nd iteration)
 nb <- 20000 # build to 20000
 nc <- 3
 
-test <- jags(dat, inits, params, "beta_binom_model_elksim.txt",
-             n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
-             parallel=TRUE, n.cores=3)
-
-# now need to run 100 simulations using simulated data
-
 # ###--- execute JAGS models
-# library(jagsUI)
-#
-# # 200 runs of base data 24 sites @ 12 months
-# jags_out.Sechelt50 <- vector('list', 200)
-# names(jags_out.Sechelt50) <- paste0('win.data', seq_along(out.CO0))
-# for(i in seq_along(jags_out.Sechelt50)){
-#   jags_out.Sechelt50.list <- jags(dat[[i]], inits.CO0, params, "beta_binom_model_elksim.txt",
+# 100 runs of base data for Sechelt using 50-60 sightability trials
+
+# jags_Sechelt50 <- vector('list', 100)
+# names(jags_Sechelt50) <- paste0('jags_Sechelt50_', seq_along(jags_Sechelt50))
+# for(i in seq_along(jags_Sechelt50)){
+#   jags_Sechelt50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
 #                        n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
 #                        parallel=TRUE, n.cores=3)
-#   jags_out.Sechelt50[[i]] <- jags_out.Sechelt50.list
+#   jags_Sechelt50[[i]] <- jags_Sechelt50.list
 # }
-# save("out.CO0",file="Simout.CO0.RData") # MB
-#
+# save("jags_Sechelt50",file="Simjags_Sechelt50.RData") # MB
+
+load("Simjags_Sechelt50.RData")
+
+summary(jags_Sechelt50) # only the first 46 models ran
+
+tau.Sechelt50_jags <- matrix(NA,46,4)
+count <- 1
+for(i in 1:nrow(tau.Sechelt50_jags)){
+  tau.Sechelt50_jags[count,1] <- jags_Sechelt50[[i]]$mean$tau.samp
+  tau.Sechelt50_jags[count,2] <- jags_Sechelt50[[i]]$q2.5$tau.samp
+  tau.Sechelt50_jags[count,3] <- jags_Sechelt50[[i]]$q97.5$tau.samp
+  tau.Sechelt50_jags[count,4] <- jags_Sechelt50[[i]]$Rhat$tau.samp
+count <- count + 1
+}
+
+tau.Sechelt50_jags
+colnames(tau.Sechelt50_jags) <- c("mean","LCL","UCL","Rhat")
+tau.Sechelt50_jags <- as.data.frame(tau.Sechelt50_jags)
+
+tau.Sechelt50_jags_simsplot = ggplot(tau.Sechelt50_jags, aes(x = reorder(row.names(tau.Sechelt50_jags),mean), y=mean))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50_jags), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+tau.Sechelt50_jags_simsplot
+ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+
+
+tau.Sechelt50_jags_sub <- tau.Sechelt50_jags %>% filter(mean <300) # only 15 / 46 with pop estimates < 300
+tau.Sechelt50_jags_sub_simsplot = ggplot(tau.Sechelt50_jags_sub, aes(x = reorder(row.names(tau.Sechelt50_jags_sub),mean), y=mean))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+tau.Sechelt50_jags_sub_simsplot
+ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+
+
+tau.Sechelt50$model <- "mHT"
+tau.Sechelt50$simID <- row.names(tau.Sechelt50)
+names(tau.Sechelt50)
+tau.Sechelt50_jags$model <- "Bayesian"
+names(tau.Sechelt50_jags)
+tau.Sechelt50_jags$simID <- row.names(tau.Sechelt50_jags)
+
+Sechelt50 <- rbind(tau.Sechelt50, tau.Sechelt50_jags %>% select(-Rhat) %>% rename(tau.hat=mean))
+
+
+col.cat <- as.character(c("#2028B2","#B2AA20"))
+Sechelt50_sub <- Sechelt50 %>% filter(tau.hat<300)
+
+Sechelt50_sub_simsplot = Sechelt50_sub %>%
+  ggplot(aes(x = reorder(simID,tau.hat), y=tau.hat, fill=model))+
+  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+  scale_fill_manual(values=unique(col.cat)) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(simID, ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Sechelt50_sub_simsplot
+ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_both_sub_simsplot.PNG")
+
+Sechelt50_simsplot = Sechelt50 %>%
+  ggplot(aes(x = reorder(rownames(Sechelt50),tau.hat), y=tau.hat, fill=model))+
+  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+  scale_fill_manual(values=unique(col.cat)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(rownames(Sechelt50), ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))+
+  ylim(c(0,20000))
+Sechelt50_simsplot
+ggsave(Sechelt50_simsplot, file="out/Sechelt50_both_simsplot_simsplot.PNG")
+
