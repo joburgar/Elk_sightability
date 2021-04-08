@@ -16,71 +16,71 @@
 # written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 9-Mar-2021
 #####################################################################################
 
-# overall process:
-#- Run basic mHT sightablity model simulations
-# Steinhorst and Samuel (1989) assumptions:
-# 1. The population is geographically and demographically closed.
-# 2. Groups of animals are independently observed.
-# 3. Observed groups are completely enumerated and observed only once.
-# 4. The survey design for land units can be specified.
-# 5. The probability of observing a group is known or can be estimated
-
-data("obs.m")
-data("exp.m")
-data("sampinfo.m")
-
-# experimental data frame consists of:
-# year (year of test trial)
-# observed (binary; 1 if telem animal observed, 0 otherwise)
-# voc (covariate; amount of screening cover within 10 m of first animal seen)
-# grpsize (group size)
-# each row represents an independent sightability trial with observed representing the random variables
-exp.m[1:5,]
-glimpse(exp.m)
-exp.m %>% group_by(year) %>% count(observed) # 39 sightability trials in 2005, 37 in 2006 and 48 in 2007
-
-# operational data frame consists of:
-# each row corresponds to an independently sighted group with animal-specific covariates
-# subunit is the sample plot identifier (EPU in our case?)
-# stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
-obs.m[1:5,]
-glimpse(obs.m)
-
-# sampling information data frame consists of:
-# number of sampled units nh in each stratum
-# population Nh in each stratum
-sampinfo.m
-
-
-# to fit a specified logistic regression and estimate population abundance in a single step use Sight.Est function
-# code below models detection probability as a function of visual obstruction
-# note that an intercept only model would assume detection probabilities are constant, specified using observed~1
-est.2004 <- Sight.Est(observed~voc, odat = subset(obs.m, year==2004),
-                        sdat = exp.m, sampinfo = subset(sampinfo.m, year==2004))
-print(est.2004)
-# Variance component estimates provide useful information for improving future surveys
-# VarSamp = sampling uncertainty; reduced by surveying a larger number of aerial plots or implement more efficient sampling design
-# VarMod = parameter uncertainty; reduced by conducting more sightability trials
-
-# to fit a specified logistic regression and estimate population abundance in a single step use Sight.Est function
-# code below models detection probability as a function of visual obstruction
-# note that an intercept only model would assume detection probabilities are constant, specified using observed~1
-# below is for bootstrapping when sightability trials are low (i.e., < 100)
-est.2004 <- Sight.Est(observed~voc,
-                      odat = subset(obs.m, year==2004),
-                      sdat = subset(exp.m, year==2005),
-                      sampinfo = subset(sampinfo.m, year==2004),
-                      method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = FALSE)
-print(est.2004)
-print(format(round(est.2004$est, 0), big.mark = ","), quote = FALSE)
-
-
-boot.est <- Sight.Est(observed~voc,
-                      odat = subset(obs.m, year==2004),
-                      sdat = subset(exp.m, year==2005),
-                      sampinfo = subset(sampinfo.m, year==2004),
-                      method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
-print(format(round(boot.est$est, 0), big.mark = ","), quote = FALSE)
+# # overall process:
+# #- Run basic mHT sightablity model simulations
+# # Steinhorst and Samuel (1989) assumptions:
+# # 1. The population is geographically and demographically closed.
+# # 2. Groups of animals are independently observed.
+# # 3. Observed groups are completely enumerated and observed only once.
+# # 4. The survey design for land units can be specified.
+# # 5. The probability of observing a group is known or can be estimated
+#
+# data("obs.m")
+# data("exp.m")
+# data("sampinfo.m")
+#
+# # experimental data frame consists of:
+# # year (year of test trial)
+# # observed (binary; 1 if telem animal observed, 0 otherwise)
+# # voc (covariate; amount of screening cover within 10 m of first animal seen)
+# # grpsize (group size)
+# # each row represents an independent sightability trial with observed representing the random variables
+# exp.m[1:5,]
+# glimpse(exp.m)
+# exp.m %>% group_by(year) %>% count(observed) # 39 sightability trials in 2005, 37 in 2006 and 48 in 2007
+#
+# # operational data frame consists of:
+# # each row corresponds to an independently sighted group with animal-specific covariates
+# # subunit is the sample plot identifier (EPU in our case?)
+# # stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
+# obs.m[1:5,]
+# glimpse(obs.m)
+#
+# # sampling information data frame consists of:
+# # number of sampled units nh in each stratum
+# # population Nh in each stratum
+# sampinfo.m
+#
+#
+# # to fit a specified logistic regression and estimate population abundance in a single step use Sight.Est function
+# # code below models detection probability as a function of visual obstruction
+# # note that an intercept only model would assume detection probabilities are constant, specified using observed~1
+# est.2004 <- Sight.Est(observed~voc, odat = subset(obs.m, year==2004),
+#                         sdat = exp.m, sampinfo = subset(sampinfo.m, year==2004))
+# print(est.2004)
+# # Variance component estimates provide useful information for improving future surveys
+# # VarSamp = sampling uncertainty; reduced by surveying a larger number of aerial plots or implement more efficient sampling design
+# # VarMod = parameter uncertainty; reduced by conducting more sightability trials
+#
+# # to fit a specified logistic regression and estimate population abundance in a single step use Sight.Est function
+# # code below models detection probability as a function of visual obstruction
+# # note that an intercept only model would assume detection probabilities are constant, specified using observed~1
+# # below is for bootstrapping when sightability trials are low (i.e., < 100)
+# est.2004 <- Sight.Est(observed~voc,
+#                       odat = subset(obs.m, year==2004),
+#                       sdat = subset(exp.m, year==2005),
+#                       sampinfo = subset(sampinfo.m, year==2004),
+#                       method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = FALSE)
+# print(est.2004)
+# print(format(round(est.2004$est, 0), big.mark = ","), quote = FALSE)
+#
+#
+# boot.est <- Sight.Est(observed~voc,
+#                       odat = subset(obs.m, year==2004),
+#                       sdat = subset(exp.m, year==2005),
+#                       sampinfo = subset(sampinfo.m, year==2004),
+#                       method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+# print(format(round(boot.est$est, 0), big.mark = ","), quote = FALSE)
 
 ################################################################################################
 ###--- let's create some simulated data to play with
@@ -150,7 +150,7 @@ sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(1,42), g
 #- can use the default values of simulation for experimental data frame
 
 # create 100 datasets of simulated experimental (sightability trial) data
-# first with sightabilty surveys over 2 years, assuming differnces in sighting so between 50-60 groups observed across years
+# first with sightability surveys over 2 years, assuming differnces in sighting so between 50-60 groups observed across years
 sim.exp.trials50 <- vector('list', 100)
 names(sim.exp.trials50) <- paste0('sim.exp.trials50', seq_along(sim.exp.trials50))
 for(i in seq_along(sim.exp.trials50)){
@@ -160,7 +160,7 @@ for(i in seq_along(sim.exp.trials50)){
 str(sim.exp.trials50[1])
 # output <- data.frame(lapply(sim.exp.trials50, colSums))
 
-# then assuming differnces in sighting so between 80-100 groups observed across years
+# then assuming differences in sighting so between 80-100 groups observed across years
 sim.exp.trials100 <- vector('list', 100)
 names(sim.exp.trials100) <- paste0('sim.exp.trials100', seq_along(sim.exp.trials100))
 for(i in seq_along(sim.exp.trials100)){
@@ -169,6 +169,12 @@ for(i in seq_along(sim.exp.trials100)){
   sim.exp.trials100[[i]] <- sim.exp.trials.base
 }
 
+
+sim.exp.trials50 <- sim.exp.m.fn(n.sghtblty.trls=50)
+sim.exp.trials50 %>% count(observed) # 39 observed and 11 not observed
+
+sim.exp.trials100 <- sim.exp.m.fn(n.sghtblty.trls=100)
+sim.exp.trials100 %>% count(observed) # 83 observed and 17 not observed
 
 ###--- create simulted observation data.frame
 # operational data frame consists of:
@@ -250,7 +256,6 @@ for(i in seq_along(sim.obs.Sechelt)){
   sim.obs.Sechelt[[i]] <- sim.obs.Sechelt.base
 }
 
-
 # create 100 datasets of simulated Skwawka observation data
 # 2020 estimated pop size 68
 sim.obs.Skwawka <- vector('list', 100)
@@ -260,8 +265,11 @@ for(i in seq_along(sim.obs.Skwawka)){
   sim.obs.Skwawka[[i]] <- sim.obs.Skwawka.base
 }
 
-sim.obs.Skwawka_sub <- Filter(function(x) colSums(x) > 0,sim.obs.Skwawka)
-str(sim.obs.Skwawka_sub)
+# sim.obs.Skwawka_sub <- Filter(function(x) colSums(x) > 0,sim.obs.Skwawka)
+# str(sim.obs.Skwawka_sub)
+# length(sim.obs.Skwawka)
+
+
 # tmp <- sim.obs.Sechelt[sim.obs.Sechelt]
 #
 # data.frame(lapply(sim.obs.Sechelt_sub, colSums))
@@ -304,47 +312,62 @@ set.sampinfo.Skwawka$nh <- 50 # set as 50, considering each transect flown as nh
 set.sampinfo.Skwawka <- as.data.frame(set.sampinfo.Skwawka %>% mutate(across(1:4, as.integer)))
 
 ###--- try fitting the boot strapped mHT
-# this round has between 50-60 sightability trials, 100 simulations
+# this round has between 50 sightability trials, 100 simulations
 out.Sechelt50 <- vector('list', 100)
 names(out.Sechelt50) <- paste0('sim.Sechelt50_', seq_along(out.Sechelt50))
 for(i in seq_along(out.Sechelt50)){
   out.Sechelt50.list <- Sight.Est(observed~voc,
                                   odat = subset(sim.obs.Sechelt[[i]], year==2020),
-                                  sdat = sim.exp.trials50[[i]],
+                                  sdat = sim.exp.trials50,
                                   sampinfo = subset(set.sampinfo.Sechelt, year == 2020),
                                   method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
   out.Sechelt50[[i]] <- out.Sechelt50.list
 }
 
-saveRDS(out.Sechelt50,"mHT_rd1_Sechelt50.RDS")
+saveRDS(out.Sechelt50,"mHT_rd2_Sechelt50.RDS")
 
-# this round has 80-100 sightability trials, 100 simulations
+# this round has 100 sightability trials, 100 simulations
 out.Sechelt100 <- vector('list', 100)
 names(out.Sechelt100) <- paste0('out.Sechelt100_', seq_along(out.Sechelt100))
 for(i in seq_along(out.Sechelt100)){
   out.Sechelt.list <- Sight.Est(observed~voc,
                                   odat = subset(sim.obs.Sechelt[[i]], year==2020),
-                                  sdat = sim.exp.trials100[[i]],
+                                  sdat = sim.exp.trials100,
                                   sampinfo = subset(set.sampinfo.Sechelt, year == 2020),
                                   method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
   out.Sechelt100[[i]] <- out.Sechelt.list
 }
 
-saveRDS(out.Sechelt100,"mHT_rd1_Sechelt100.RDS")
+saveRDS(out.Sechelt100,"mHT_rd2_Sechelt100.RDS")
 
-# this round has 50-60 sightability trials, 100 simulations
+# this round has 50 sightability trials, 100 simulations
 out.Skwawka50 <- vector('list', 100)
 names(out.Skwawka50) <- paste0('out.Skwawka50_', seq_along(out.Skwawka50))
 for(i in seq_along(out.Skwawka50)){
   out.Skwawka.list <- Sight.Est(observed~voc,
                                   odat = subset(sim.obs.Skwawka[[i]], year==2020),
-                                  sdat = sim.exp.trials50[[i]],
+                                  sdat = sim.exp.trials50,
                                   sampinfo = subset(set.sampinfo.Skwawka, year == 2020),
                                   method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
   out.Skwawka50[[i]] <- out.Skwawka.list
 }
 
-saveRDS(out.Skwawka50,"mHT_rd1_Skwawka50.RDS")
+saveRDS(out.Skwawka50,"mHT_rd2_Skwawka50.RDS")
+
+# this round has 100 sightability trials, 100 simulations
+out.Skwawka100 <- vector('list', 100)
+names(out.Skwawka100) <- paste0('out.Skwawka100_', seq_along(out.Skwawka100))
+for(i in seq_along(out.Skwawka100)){
+  out.Skwawka.list <- Sight.Est(observed~voc,
+                                odat = subset(sim.obs.Skwawka[[i]], year==2020),
+                                sdat = sim.exp.trials100,
+                                sampinfo = subset(set.sampinfo.Skwawka, year == 2020),
+                                method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+  out.Skwawka100[[i]] <- out.Skwawka.list
+}
+
+saveRDS(out.Skwawka100,"mHT_rd2_Skwawka100.RDS")
+
 
 
 ################################################################################################
@@ -368,7 +391,7 @@ rownames(tau.Sechelt50) <- rownames(tau.Sechelt100) <- 1:100
 colnames(tau.Sechelt50) <- colnames(tau.Sechelt100) <- c("tau.hat","LCL","UCL")
 (tau.Sechelt50 <- apply(tau.Sechelt50, 1:2,
                    FUN=function(x){as.numeric(gsub(",", "", x, fixed = TRUE))}))
-(tau.Sechelt100 <-   (tau.Sechelt50 <- apply(tau.Sechelt50, 1:2,
+(tau.Sechelt100 <-   (tau.Sechelt100 <- apply(tau.Sechelt100, 1:2,
                                 FUN = function(x){as.numeric(gsub(",", "", x, fixed = TRUE))})))
 
 
@@ -383,10 +406,9 @@ Sechelt50_simsplot = ggplot(tau.Sechelt50, aes(x = reorder(row.names(tau.Sechelt
   geom_linerange(aes(row.names(tau.Sechelt50), ymin = LCL, ymax = UCL)) +
   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14)) +
-  ylim(0,10000)
-
-ggsave(Sechelt50_simsplot, file="out/Sechelt50_simsplots.PNG")
+  theme(axis.text.y = element_text(size=14))
+Sechelt50_simsplot
+ggsave(Sechelt50_simsplot, file="out/Sechelt50_simsplot_rd2.PNG")
 
 
 tau.Sechelt50_sub <- tau.Sechelt50 %>% filter(tau.hat <300) # only 16 / 100 with pop estimates < 300
@@ -399,9 +421,8 @@ Sechelt50_sub_simsplot = ggplot(tau.Sechelt50_sub, aes(x = reorder(row.names(tau
   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
   theme(axis.text.y = element_text(size=14))
-Sechelt50_sub_simsplot
-
-ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_sub_simsplots.PNG")
+Sechelt50_sub_simsplot # 28 out of 99 simulations
+ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_sub_simsplot_rd2.PNG")
 
 
 ###--- for Skwawka
@@ -411,7 +432,6 @@ for(i in 1:nrow(tau.Skwawka50)){
   tau.Skwawka50[count,] <- unlist(summary(out.Skwawka50[[i]]))
   count <- count + 1
 }
-
 
 rownames(tau.Skwawka50) <- 1:100
 colnames(tau.Skwawka50) <- c("tau.hat","LCL","UCL")
@@ -432,10 +452,9 @@ Skwawka50_simsplot = ggplot(tau.Skwawka50, aes(x = reorder(row.names(tau.Skwawka
   geom_linerange(aes(row.names(tau.Skwawka50), ymin = LCL, ymax = UCL)) +
   geom_hline(yintercept=pop.size.Skwawka, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))+
-  ylim(0,10000)
+  theme(axis.text.y = element_text(size=14))
 Skwawka50_simsplot
-ggsave(Skwawka50_simsplot, file="out/Skwawka50_simsplot.PNG")
+ggsave(Skwawka50_simsplot, file="out/Skwawka50_simsplot_rd2.PNG")
 
 
 tau.Skwawka50_sub <- tau.Skwawka50 %>% filter(tau.hat <100) # only 17 /100 with pop estimates < 100 (and none converged / no CI)
@@ -448,8 +467,8 @@ Skwawka50_sub_simsplot = ggplot(tau.Skwawka50_sub, aes(x = reorder(row.names(tau
   geom_hline(yintercept=pop.size.Skwawka, linetype="dashed", color = "red") +
   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
   theme(axis.text.y = element_text(size=14))
-Skwawka50_sub_simsplot
-ggsave(Skwawka50_sub_simsplot, file="out/Skwawka50_sub_simsplot.PNG")
+Skwawka50_sub_simsplot # 22 out of 100
+ggsave(Skwawka50_sub_simsplot, file="out/Skwawka50_sub_simsplot_rd2.PNG")
 
 # save.image("mHT_sightability_simulations.RData")
 # load("mHT_sightability_simulations.RData")
@@ -493,6 +512,7 @@ sight_dat50[[1]] # check - looks the same as Fieberg's sight_dat csv
 # currently have sim.obs.Sechelt and sim.obs.Skwawka
 # first create very simple oper_dat files for each EPU separately and then combine to see if better power
 
+###--- Sechelt Peninsula
 oper_dat.Sechelt <- vector('list', 100)
 names(oper_dat.Sechelt) <- paste0('oper_dat.Sechelt_', seq_along(oper_dat.Sechelt))
 for(i in seq_along(oper_dat.Sechelt)){
@@ -520,6 +540,34 @@ for(i in seq_along(oper_dat.Sechelt)){
 
 oper_dat.Sechelt[[2]] # check - looks the same as Fieberg's oper_dat csv
 
+###--- Skwawka
+oper_dat.Skwawka <- vector('list', 100)
+names(oper_dat.Skwawka) <- paste0('oper_dat.Skwawka_', seq_along(oper_dat.Skwawka))
+for(i in seq_along(oper_dat.Skwawka)){
+
+  # need to add in augmented NA values
+
+  oper_dat.Skwawka.obs <-  sim.obs.Skwawka[[i]]
+  oper_dat.Skwawka.obs$q <- 1
+  oper_dat.Skwawka.obs$z <- 1
+  oper_dat.Skwawka.obs$ym1 <- oper_dat.Skwawka.obs$grpsize - 1
+  oper_dat.Skwawka.obs$yr <-1
+  oper_dat.Skwawka.obs <- oper_dat.Skwawka.obs[c("voc","ym1","stratum","q","z","yr","subunit")]
+  oper_dat.Skwawka.obs$voc <- oper_dat.Skwawka.obs$voc * 0.01 # change to proportion for consistency with Fieberg code
+  colnames(oper_dat.Skwawka.obs) <- c("x", "ym1", "h","q","z","yr","subunits")
+
+  oper_dat.Skwawka.aug <-  as.data.frame(matrix(NA, 100-nrow(sim.obs.Skwawka[[i]]),7))
+  colnames(oper_dat.Skwawka.aug) <- c("x", "ym1", "h","q","z","yr","subunits")
+  oper_dat.Skwawka.aug$h <- 1
+  oper_dat.Skwawka.aug$z <- 0
+  oper_dat.Skwawka.aug$yr <-1
+  oper_dat.Skwawka.aug$subunits <- 1
+
+  oper_dat.Skwawka[[i]] <- rbind(oper_dat.Skwawka.obs, oper_dat.Skwawka.aug)
+}
+
+oper_dat.Skwawka[[2]] # check - looks
+
 # 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
 # yr.plots = year the plot was sampled (1 = 2006, 2= 2007)
@@ -527,8 +575,13 @@ oper_dat.Sechelt[[2]] # check - looks the same as Fieberg's oper_dat csv
 plot_dat_Sechelt <- as.data.frame(matrix(NA,100,2))
 colnames(plot_dat_Sechelt) <- c("h.plots","yr.plots")
 
+plot_dat_Skwawka <- as.data.frame(matrix(NA,100,2))
+colnames(plot_dat_Skwawka) <- c("h.plots","yr.plots")
+
 # unstratified survey so all h.plots = 1, using only 2020 data so all yr.plots also 1
 plot_dat_Sechelt$h.plots <- plot_dat_Sechelt$yr.plots <- 1
+
+plot_dat_Skwawka$h.plots <- plot_dat_Skwawka$yr.plots <- 1
 
 # 4.  scalar_dat.csv:  Scalars:
 # R = number of sightability trials (124)
@@ -537,36 +590,42 @@ plot_dat_Sechelt$h.plots <- plot_dat_Sechelt$yr.plots <- 1
 # ny1 = number of groups associated with the annual survey in 2006 (year 1) = 2060
 
 ###--- for list of scalar_dat for simulations
+# Sechelt
 scalar_dat_Sechelt50  <- as.data.frame(matrix(NA,100,4))
 colnames(scalar_dat_Sechelt50) <- c("R","Ngroups","Nsubunits.yr","ny1")
 
-# set the top most number of groups observed between 50-60 for sim.obs.Sechelt so can comfortably augment to 100
+# set the top most number of groups observed at 50 for sim.obs.Sechelt so can comfortably augment to 100
 scalar_dat_Sechelt50$Ngroups <- 100  # observed and augmented groups for 2020 survey
 scalar_dat_Sechelt50$Nsubunits.yr <- set.sampinfo.Sechelt$nh # total number of plots surveyed in 2020
 
 count <- 1
 for(i in 1:nrow(scalar_dat_Sechelt50)){
-  scalar_dat_Sechelt50[count,1] <- nrow(sim.exp.trials50[[i]]) # number of sightabilty trials = nrow for each sim.exp.trials50
+  scalar_dat_Sechelt50[count,1] <- nrow(sim.exp.trials50) # number of sightabilty trials = nrow for each sim.exp.trials50
   scalar_dat_Sechelt50[count,4] <- nrow(sim.obs.Sechelt[[i]])  # number of groups associated with inventory survey in 2020
   count <- count + 1
 }
 scalar_dat_Sechelt50
-# scalar_dat_Sechelt50 <- as.data.frame(scalar_dat_Sechelt50 %>% mutate(across(1:4, as.integer)))
+
+# Skwawka
+scalar_dat_Skwawka50  <- as.data.frame(matrix(NA,100,4))
+colnames(scalar_dat_Skwawka50) <- c("R","Ngroups","Nsubunits.yr","ny1")
+
+# set the top most number of groups observed at 50 for sim.obs.Skwawka so can comfortably augment to 100
+scalar_dat_Skwawka50$Ngroups <- 100  # observed and augmented groups for 2020 survey
+scalar_dat_Skwawka50$Nsubunits.yr <- set.sampinfo.Sechelt$nh # total number of plots surveyed in 2020
+
+count <- 1
+for(i in 1:nrow(scalar_dat_Skwawka50)){
+  scalar_dat_Skwawka50[count,1] <- nrow(sim.exp.trials50) # number of sightabilty trials = nrow for each sim.exp.trials50
+  scalar_dat_Skwawka50[count,4] <- nrow(sim.obs.Skwawka[[i]])  # number of groups associated with inventory survey in 2020
+  count <- count + 1
+}
+scalar_dat_Skwawka50
 
 #############################################################
 ###--- RUNNING 3 CHAINS IN PARALLEL USING JAGS IMPLEMENTATION
 
 # Bundle data
-
-bundle.data <- vector('list', 100)
-names(bundle.data) <- paste0('bundle.data_', seq_along(bundle.data))
-for(i in seq_along(bundle.data)){
-  bundle.data.list <- list(x.tilde=sight_dat50[[i]]$x.tilde, z.tilde=sight_dat50[[i]]$z.tilde, #sight_dat
-                           x=oper_dat.Sechelt[[i]]$x, ym1=oper_dat.Sechelt[[i]]$ym1, h=oper_dat.Sechelt[[i]]$h, q=oper_dat.Sechelt[[i]]$q, z=oper_dat.Sechelt[[i]]$z, yr=oper_dat.Sechelt[[i]]$yr, subunits=oper_dat.Sechelt[[i]]$subunits, # oper_dat
-                           h.plots=plot_dat_Sechelt$h.plots, yr.plots=plot_dat_Sechelt$yr.plots, # plot_dat
-                           R=scalar_dat_Sechelt50[i,]$R, Ngroups=scalar_dat_Sechelt50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Sechelt50[i,]$Nsubunits.yr, ny1=scalar_dat_Sechelt50[i,]$ny1) # scalar_dat
-  bundle.data[[i]] <- bundle.data.list
-}
 
 # specify initial values
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
@@ -582,21 +641,56 @@ nb <- 20000 # build to 20000
 nc <- 3
 
 # ###--- execute JAGS models
-# 100 runs of base data for Sechelt using 50-60 sightability trials
+# 100 runs of base data for Sechelt using 50 sightability trials
+bundle.data <- vector('list', 100)
+names(bundle.data) <- paste0('bundle.data_', seq_along(bundle.data))
+for(i in seq_along(bundle.data)){
+  bundle.data.list <- list(x.tilde=sight_dat50$x.tilde, z.tilde=sight_dat50$z.tilde, #sight_dat
+                           x=oper_dat.Sechelt[[i]]$x, ym1=oper_dat.Sechelt[[i]]$ym1, h=oper_dat.Sechelt[[i]]$h, q=oper_dat.Sechelt[[i]]$q, z=oper_dat.Sechelt[[i]]$z, yr=oper_dat.Sechelt[[i]]$yr, subunits=oper_dat.Sechelt[[i]]$subunits, # oper_dat
+                           h.plots=plot_dat_Sechelt$h.plots, yr.plots=plot_dat_Sechelt$yr.plots, # plot_dat
+                           R=scalar_dat_Sechelt50[i,]$R, Ngroups=scalar_dat_Sechelt50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Sechelt50[i,]$Nsubunits.yr, ny1=scalar_dat_Sechelt50[i,]$ny1) # scalar_dat
+  bundle.data[[i]] <- bundle.data.list
+}
 
-# jags_Sechelt50 <- vector('list', 100)
-# names(jags_Sechelt50) <- paste0('jags_Sechelt50_', seq_along(jags_Sechelt50))
-# for(i in seq_along(jags_Sechelt50)){
-#   jags_Sechelt50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
-#                        n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
-#                        parallel=TRUE, n.cores=3)
-#   jags_Sechelt50[[i]] <- jags_Sechelt50.list
-# }
-# save("jags_Sechelt50",file="Simjags_Sechelt50.RData") # MB
+jags_Sechelt50 <- vector('list', 100)
+names(jags_Sechelt50) <- paste0('jags_Sechelt50_', seq_along(jags_Sechelt50))
+for(i in seq_along(jags_Sechelt50)){
+  jags_Sechelt50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
+                       n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+                       parallel=TRUE, n.cores=3)
+  jags_Sechelt50[[i]] <- jags_Sechelt50.list
+}
+save("jags_Sechelt50",file="Simjags_Sechelt50_rd2.RData") #
 
-load("Simjags_Sechelt50.RData")
+summary(jags_Sechelt50) # only the first 18 models ran
 
-summary(jags_Sechelt50) # only the first 46 models ran
+# 100 runs of base data for Skwawka using 50 sightability trials
+bundle.data <- vector('list', 100)
+names(bundle.data) <- paste0('bundle.data_', seq_along(bundle.data))
+for(i in seq_along(bundle.data)){
+  bundle.data.list <- list(x.tilde=sight_dat50$x.tilde, z.tilde=sight_dat50$z.tilde, #sight_dat
+                           x=oper_dat.Skwawka[[i]]$x, ym1=oper_dat.Skwawka[[i]]$ym1, h=oper_dat.Skwawka[[i]]$h, q=oper_dat.Skwawka[[i]]$q, z=oper_dat.Skwawka[[i]]$z, yr=oper_dat.Skwawka[[i]]$yr, subunits=oper_dat.Skwawka[[i]]$subunits, # oper_dat
+                           h.plots=plot_dat_Skwawka$h.plots, yr.plots=plot_dat_Skwawka$yr.plots, # plot_dat
+                           R=scalar_dat_Skwawka50[i,]$R, Ngroups=scalar_dat_Skwawka50[i,]$Ngroups, Nsubunits.yr=scalar_dat_Skwawka50[i,]$Nsubunits.yr, ny1=scalar_dat_Skwawka50[i,]$ny1) # scalar_dat
+  bundle.data[[i]] <- bundle.data.list
+}
+jags_Skwawka50 <- vector('list', 100)
+names(jags_Skwawka50) <- paste0('jags_Skwawka50_', seq_along(jags_Skwawka50))
+for(i in seq_along(jags_Skwawka50)){
+  jags_Skwawka50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
+                              n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+                              parallel=TRUE, n.cores=3)
+  jags_Skwawka50[[i]] <- jags_Skwawka50.list
+}
+save("jags_Skwawka50",file="Simjags_Skwawka50_rd2.RData") #
+# load("Simjags_Skwawka50_rd2.RData")
+
+summary(jags_Skwawka50) #
+
+
+# ###--- combining JAGS output into usable format
+# load("Simjags_Sechelt50_rd2.RData")
+# load("Simjags_Skwawka50_rd2.RData")
 
 tau.Sechelt50_jags <- matrix(NA,46,4)
 count <- 1
@@ -612,6 +706,7 @@ tau.Sechelt50_jags
 colnames(tau.Sechelt50_jags) <- c("mean","LCL","UCL","Rhat")
 tau.Sechelt50_jags <- as.data.frame(tau.Sechelt50_jags)
 
+###--- Plotting
 tau.Sechelt50_jags_simsplot = ggplot(tau.Sechelt50_jags, aes(x = reorder(row.names(tau.Sechelt50_jags),mean), y=mean))+
   geom_point(colour="black", shape=15, size=3)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
