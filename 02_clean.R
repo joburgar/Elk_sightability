@@ -17,6 +17,12 @@
 # written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 22-Feb-2021
 #####################################################################################
 
+# overall process:
+#- Clean and join Animal metadata and collar metadata (if applicable)
+#- Clean collar GPS data
+#- Clean EPU metadata (from SBOT and inventory files) and join with collar data
+#- Priortize EPUs for use in Phase 1 and Phase 2
+
 #- clean collar inventory and capture / telemetry metadata, then combine with telemetry download data
 # collar inventory
 glimpse(collar_inv)
@@ -144,7 +150,7 @@ dup.collars <- c("15114", "15120", "22587")
 common_collars <- intersect(collar_meta$Collar.ID, collar_pos$Collar.ID)
 length(common_collars) # 54 common Collar.IDs
 
-collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # currently 11 collars out not yet included in meta data files
+collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # currently 32 collars out not yet included in meta data files
 
 #- add in metadata to collar_pos file, while only selecting pertinent columns
 collar_dat <- left_join(collar_pos %>% select(Collar.ID, Latitude, Longitude, Mortality.Status, Date.Time.PST, Time.PST, Year, Month, jDay),
@@ -202,7 +208,7 @@ collar_dat <- collar_dat %>% mutate(Animal.ID = case_when(is.na(Animal.ID) ~ Ani
 #- plot and visual cleaned telemetry data
 
 telem_dat <- collar_dat %>% filter(use.fix=="yes", na.rm=TRUE) # includes animals with meta data and new animals
-nrow(collar_dat) - nrow(telem_dat) # removed 237 erroneous data points
+nrow(collar_dat) - nrow(telem_dat) # removed 25 erroneous data points
 
 telem_dat$Count <- 1 # add count for each fix
 
@@ -218,7 +224,7 @@ min(collar.dates$min.Date); max(collar.dates$min.Date)
 
 min(collar.dates$max.Date); max(collar.dates$max.Date)
 # [1] "2018-11-07 06:13:14 PST"
-# [1] "2021-02-19 04:02:39 PST"
+# [1] "2021-03-26 01:01:06 PDT"
 
 # will still need to clean collar data to make sure not included dates when collaring individuals
 # speak to bios about # days post collaring to start including animals in analysis
@@ -312,7 +318,7 @@ map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS8
 #   mytheme
 
 download_date <- substr(recent_file, 11,21)
-Collar_plot_2021 <- autoplot(map.latlon)  +
+Collar_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
   labs(title = "Elk 2021 Locations", subtitle = paste("Vectronics Data - latest download",download_date, sep=" "),x = "Longitude", y="Latitude")+
   geom_point(data=telem_dat[telem_dat$Year=="2021",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
 
@@ -367,8 +373,8 @@ as.data.frame(telem_dat %>% group_by(Pop.Unit.Release) %>% count(EPU.Fix))
 
 elk.per.EPU <- as.data.frame(telem_dat %>% filter(Year=="2021") %>% group_by(EPU.Fix) %>% count(Animal.ID))
 elk.per.EPU$EPU.Fix <- str_remove(elk.per.EPU$EPU.Fix, "[*]") # for some reason need to do this for each *
-collars.per.EPU <- elk.per.EPU %>% count(EPU.Fix) # 22 EPUs with elk with active collars in 2021
-elk.per.EPU %>% count(Animal.ID) # 47 elk with operational collars in 2021
+collars.per.EPU <- elk.per.EPU %>% count(EPU.Fix) # 25 EPUs with elk with active collars in 2021
+elk.per.EPU %>% count(Animal.ID) # 79 elk with operational collars in 2021
 
 #####################################################################################
 ###--- simple map overlaying EPU and roads
@@ -401,17 +407,17 @@ as.data.frame(EPU_roads %>% arrange(Prop.Road) %>% filter(Road.Type=="Road"))
 EPU_priority <- full_join(collars.per.EPU,
                           EPU_roads %>% filter(Road.Type=="Road"),
                           by=c("EPU.Fix" = "EPU.Unit.Name"))
-colnames(EPU_priority)[2] <- "Collared.Elk.2020"
-EPU_priority$Collared.Elk.2021 <- NA
-
-EPU_priority$EPU.Fix
-
-EPU_priority <- EPU_priority %>% mutate(Collared.Elk.2021 = case_when(EPU.Fix %in% c("Vancouver") ~ 4,
-                                                                      EPU.Fix %in% c("Clowhom") ~ 3,
-                                                                      EPU.Fix %in% c("Skwawka") ~ 5,
-                                                                      EPU.Fix %in% c("Sechelt Peninsula") ~ 8,
-                                                                      EPU.Fix %in% c("Narrows") ~ 2,
-                                                                      TRUE ~ as.numeric(Collared.Elk.2020)))
+colnames(EPU_priority)[2] <- "Collared.Elk.2021"
+# EPU_priority$Collared.Elk.2021 <- NA
+#
+# EPU_priority$EPU.Fix
+#
+# EPU_priority <- EPU_priority %>% mutate(Collared.Elk.2021 = case_when(EPU.Fix %in% c("Vancouver") ~ 4,
+#                                                                       EPU.Fix %in% c("Clowhom") ~ 3,
+#                                                                       EPU.Fix %in% c("Skwawka") ~ 5,
+#                                                                       EPU.Fix %in% c("Sechelt Peninsula") ~ 8,
+#                                                                       EPU.Fix %in% c("Narrows") ~ 2,
+#                                                                       TRUE ~ as.numeric(Collared.Elk.2020)))
 
 EPU_priority <- left_join(EPU_priority %>% rename("EPU.Unit.Name" = "EPU.Fix") %>% select(-Road.Length.m, -Road.Type),
                           EPU %>% select(EPU.Unit.Name, Target.Pop, Pop.Est.2020, Est.Pop.Trend))
@@ -461,3 +467,58 @@ EPU_priority <- left_join(EPU_priority, Priority.EPU.Centroid_coordinates)
 
 write.csv(EPU_priority, "out/EPU_priority.csv")
 
+
+###---
+Rd1_telem <- telem_dat %>% filter(EPU.Fix=="Sechelt Peninsula" | EPU.Fix=="Skwawka")
+###--- create sf object from sampling location data frame
+Rd1_telem <- st_as_sf(Rd1_telem, coords = c("Latitude","Longitude"), crs = 4326)
+write.csv(Rd1_telem,"Rd1_telem.csv")
+
+###--- view OSM data and download appropriate section for study area
+Sechelt_bbox <- st_bbox(EPU_latlon %>% filter(EPU_Unit_N=="Sechelt Peninsula"))
+Skwawka_bbox <- st_bbox(EPU_latlon %>% filter(EPU_Unit_N=="Skwawka"))
+st_bbox(telem_sf)
+
+# use EPU_latlon for entire study area
+
+LAT1 = Sechelt_bbox[2] ; LAT2 = Sechelt_bbox[4]
+LON1 = Sechelt_bbox[3] ; LON2 = Sechelt_bbox[1]
+
+LAT1 = Skwawka_bbox[2] ; LAT2 = Skwawka_bbox[4]
+LON1 = Skwawka_bbox[3] ; LON2 = Skwawka_bbox[1]
+
+#our background map
+map <- openmap(c(LAT2,LON1), c(LAT1,LON2), zoom = NULL,
+               type = c("osm", "stamen-toner", "stamen-terrain","stamen-watercolor", "esri","esri-topo")[6],
+               mergeTiles = TRUE)
+
+## OSM CRS :: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs"
+map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+Sechelt_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
+  labs(title = "Elk Locations", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
+  geom_point(data=Rd1_telem[Rd1_telem$EPU.Fix=="Sechelt Peninsula",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+
+Cairo(file="out/Sechelt_plot_2021.PNG",
+      type="png",
+      width=3000,
+      height=2200,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Sechelt_plot_2021
+dev.off()
+
+Skwawka_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
+  labs(title = "Elk Locations", subtitle = "Skwawka", x = "Longitude", y="Latitude")+
+  geom_point(data=Rd1_telem[Rd1_telem$EPU.Fix=="Skwawka",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+
+Cairo(file="out/Skwawka_plot_20211.PNG",
+      type="png",
+      width=3000,
+      height=2200,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Skwawka_plot_2021
+dev.off()
