@@ -26,12 +26,11 @@ tz = Sys.timezone() # specify timezone in BC
 
 # Load Packages
 list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo",
-                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "jagsUI")
+                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "jagsUI", "nimble")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
-
 #####################################################################################
 ###--- Import spatial files
 # Set study region as BC / SC
@@ -44,10 +43,10 @@ SC_latlon <- st_transform(SC, crs=4326)
 st_bbox(SC_latlon)
 
 # Import BEC, Ecoprovinces, Ecoregions and Ecosections
-BEC.SC <- bec() %>% st_crop(st_bbox(SC))
-ECOprov.SC <- ecoprovinces() %>% st_crop(st_bbox(SC))
-ECOreg.SC <- ecoregions() %>% st_crop(st_bbox(SC))
-ECOsec.SC <- ecosections() %>% st_crop(st_bbox(SC))
+BEC.SC <- bec() %>% st_intersection(SC)
+ECOprov.SC <- ecoprovinces() %>% st_intersection(SC)
+ECOreg.SC <- ecoregions() %>% st_intersection(SC)
+ECOsec.SC <- ecosections() %>% st_intersection(SC)
 
 ggplot() +
   geom_sf(data = BEC.SC, aes(fill=MAP_LABEL)) +
@@ -61,8 +60,7 @@ ggplot() +
   coord_sf(datum = NA) +
   theme_minimal()
 
-cities.SC <- bc_cities() %>% st_crop(st_bbox(SC))
-as.data.frame(available_layers())
+cities.SC <- bc_cities() %>% st_intersection(SC)
 
 
 # Import road layer
@@ -77,17 +75,19 @@ as.data.frame(available_layers())
 #
 
 
-# # Import slope, elevation, habitat data for prioirty area
-# # will have to wait until EPUs are decided, otherwise too big to download
-# bcdc_search("aspect", res_format = "wms")
-#
-# bcdc_tidy_resources("57b8ba13-cd01-43a5-9910-bc18375426d0") %>%
-#   filter(bcdata_available == "TRUE") %>% select(name, id)
-#
-# bcdc_describe_feature("57b8ba13-cd01-43a5-9910-bc18375426d0")
-# bcdc_query_geodata("0a83163b-a62f-4ce6-a9a1-21c228b0c0a3") %>% filter(BUSINESS_AREA_PROJECT_ID==4678)
+# # Import elevation data for priority area
+
+# digital elevation raster
+SC_raster <- cded_raster(SC)
+plot(SC_raster)
 
 #- South Coast roads data from BC Data Warehouse
+# transportation layer (Digital Road Atlas)
+# bcdc_search("road", res_format = "wms")
+# Roads_line <- bcdc_query_geodata("bb060417-b6e6-4548-b837-f9060d94743e") %>%
+#   filter(INTERSECTS(SC)) %>%
+#   collect()
+# rather large, use only for priority EPUs or stick with old way
 BCWData_Dir <- "C:/Users/JBURGAR/R/Analysis/BC_Warehouse_Data/Roads/DRA_DGTL_ROAD_ATLAS_MPAR_SP"
 Roads_line <- st_read(dsn=BCWData_Dir, layer = "DRA_MPAR_line")
 
@@ -108,6 +108,7 @@ recent_file <- rownames(tmpshot$info[which.max(tmpshot$info$mtime),])
 collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE, sep=";") %>%
   type.convert() %>%
   filter(Fix.Type=="3D Validated") %>%
+  filter(Mortality.Status!="Mortality No Radius")%>%
   filter(between(Longitude..deg., st_bbox(bc_latlon)$xmin, st_bbox(bc_latlon)$xmax)) %>%
   filter(between(Latitude..deg., st_bbox(bc_latlon)$ymin, st_bbox(bc_latlon)$ymax)) %>%
   select(Collar.ID, UTC.Date, Latitude..deg., Longitude..deg., Mortality.Status) %>%
