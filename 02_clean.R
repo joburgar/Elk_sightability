@@ -472,7 +472,7 @@ write.csv(EPU_priority, "out/EPU_priority.csv")
 Rd1_telem <- telem_dat %>% filter(EPU.Fix=="Sechelt Peninsula" | EPU.Fix=="Skwawka")
 ###--- create sf object from sampling location data frame
 Rd1_telem <- st_as_sf(Rd1_telem, coords = c("Latitude","Longitude"), crs = 4326)
-write.csv(Rd1_telem,"Rd1_telem.csv")
+write.csv(Rd1_telem,"data/Rd1_telem.csv")
 
 ###--- view OSM data and download appropriate section for study area
 Sechelt_bbox <- st_bbox(EPU_latlon %>% filter(EPU_Unit_N=="Sechelt Peninsula"))
@@ -495,30 +495,33 @@ map <- openmap(c(LAT2,LON1), c(LAT1,LON2), zoom = NULL,
 ## OSM CRS :: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs"
 map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
-Sechelt_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
-  labs(title = "Elk Locations", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
-  geom_point(data=Rd1_telem[Rd1_telem$EPU.Fix=="Sechelt Peninsula",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
+  labs(title = "Elk Locations 2020-2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2019,],
+             aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
 
-Cairo(file="out/Sechelt_plot_2021.PNG",
+Cairo(file="out/Sechelt_plot_202021.PNG",
       type="png",
       width=3000,
       height=2200,
       pointsize=15,
       bg="white",
       dpi=300)
-Sechelt_plot_2021
+Sechelt_plot_202021
 dev.off()
 
-Skwawka_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
-  labs(title = "Elk Locations", subtitle = "Skwawka", x = "Longitude", y="Latitude")+
-  geom_point(data=Rd1_telem[Rd1_telem$EPU.Fix=="Skwawka",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+Skwawka_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
+  labs(title = "Elk Locations 2020-2021", subtitle = "Skwawka", x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$EPU.Fix=="Skwawka" & telem_dat$Year>2019,],
+             aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
 
-Cairo(file="out/Skwawka_plot_20211.PNG",
+Cairo(file="out/Skwawka_plot_2020211.PNG",
       type="png",
       width=3000,
       height=2200,
       pointsize=15,
       bg="white",
       dpi=300)
-Skwawka_plot_2021
+Skwawka_plot_202021
 dev.off()
+
