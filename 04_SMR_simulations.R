@@ -60,13 +60,13 @@ trap.id <- smp_lcn %>% filter(Sim60=="Sim60") %>% select(Lcn) %>% st_drop_geomet
 camXY_60$trap.id <- trap.id$Lcn
 
 ###--- have both sets of camera data, start with simulations for 40 sites
-camXY <- camXY_40[c(3,1,2)]
+camXY <- camXY_60[c(3,1,2)]
 colnames (camXY) <- c("trap.id","x","y")
 str(camXY)
 
 # specify how much to buffer sites by (in 1 km units, according to coord.scale)
 coord.scale <- 1000
-buffer <- 1 # 10 km unit buffer
+buffer <- 4 # 4 km unit buffer
 
 traplocs <- as.matrix(camXY[,c("x","y")])
 X <- traplocs/coord.scale
@@ -82,7 +82,7 @@ Y.scaled <- X[,2] - Yl
 xlims.scaled <- c(min(X.scaled)-buffer,max(X.scaled)+buffer); ylims.scaled <- c(min(Y.scaled)-buffer,max(Y.scaled)+buffer)
 
 areakm2.scaled <- xlims.scaled[2]*ylims.scaled[2]
-# [1] 704 km2 @ 1 km buffer
+# [1] 704 km2 @ 1 km buffer; 1120 km2 for 60 cams and 4 km buffer
 
 X2 <- as.matrix(cbind(X.scaled,Y.scaled))
 dim(X2) # scaled traploc matrix in 1 km units
@@ -99,11 +99,11 @@ summary(X2)
 # spacing cameras ~2 km should be good (aim for distance of 2*sigma) so range from 1.8-3.2 km apart
 # In our grid spacing, 1 unit = 1 km, so our we want a prior with most of the density between 0.89 - 1.55
 # qgamma(c(0.001,0.5,0.999),10,10)  #  0.2960520 0.9668715 2.2657373 - variable home ranges from 15-45
-# curve(dgamma(x,10,10), col='black',xlim=c(0,5), ylim=c(0,2)) ## home ranges between 15-45 ha
+# curve(dgamma(x,10,10), col='black',xlim=c(0,5), ylim=c(0,2)) ## home ranges between 15-45 km2
 
 ## for "elk"
 N <- 222
-M <- N*1.5
+M <- N*2   # to be on the safe side
 lambda0 <- 0.1
 sigma <- 1
 
@@ -124,10 +124,16 @@ sum(dat$Yknown) # number of marked elk detections
 # format simulated data for cSMR NIMBLE code
 tmp <- dat$locs
 locs <- as.data.frame(rbind(as.data.frame(tmp[1]),
-                                as.data.frame(tmp[2]),
-                                as.data.frame(tmp[3]),
-                                as.data.frame(tmp[4]),
-                                as.data.frame(tmp[5])))
+                            as.data.frame(tmp[2]),
+                            as.data.frame(tmp[3]),
+                            as.data.frame(tmp[4]),
+                            as.data.frame(tmp[5]),
+                            as.data.frame(tmp[5]),
+                            as.data.frame(tmp[6]),
+                            as.data.frame(tmp[7]),
+                            as.data.frame(tmp[8]),
+                            as.data.frame(tmp[9]),
+                            as.data.frame(tmp[10])))
 colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
 plot(locs)
 ind <- rep(1:n.marked, each=K)
@@ -164,17 +170,17 @@ clusterExport(cl3, c("jd1","ji1","jp1","M"))
 cSMR_JAGS <- clusterEvalQ(cl3, {
   library(rjags)
   jm1 <- jags.model("elk_cSMR.jag", jd1, ji1, n.chains=1, n.adapt=1000)
-  jc1 <- coda.samples(jm1, jp1, n.iter=30000)
+  jc1 <- coda.samples(jm1, jp1, n.iter=20000)
   return(as.mcmc(jc1))
 })
 
 mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 
-(end.time <- Sys.time()) # 4 mins for 1000 iterations
+(end.time <- Sys.time()) # 100 mins for 30000 iterations
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
-save("mc.cSMR_JAGS",file="out/mc.elk.cSMR_30KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk.cSMR_30KIt.ET.RData")
+save("mc.cSMR_JAGS",file=paste("out/mc.elk.sim.cSMR_",J,"cam_20KIt.RData", sep=""))
+save("mc.cSMR_JAGS.ET",file=paste("out/mc.elk.sim.cSMR_",J,"cam_20KIt.ET.RData", sep=""))
 stopCluster(cl3)
 
 #############################################################################################
@@ -182,6 +188,10 @@ stopCluster(cl3)
 cSMR.data <- list(locs=locs,y=yr.aug, n=yr.obs)
 constants <- list(M=M, x=X2, nMarked=n.marked, J=J, nlocs=nlocs,
                   ind=ind, xlim=xlims.scaled, ylim=ylims.scaled, A=areakm2.scaled)
+
+save("cSMR.data",file="out/cSMR.data.RData")
+save("constants",file="constants.RData")
+
 
 # inits <- function() list(z=rep(1,M))	# Initialize at psi = 100% That seems inefficient...
 
@@ -233,15 +243,15 @@ out <- mcmc.list(list(as.mcmc(samples[[1]]), as.mcmc(samples[[2]]), as.mcmc(samp
 
 ################################
 ###--- view output
-mc.cSMR_JAGS.ET #
+mc.cSMR_JAGS.ET # 184 min for 20KIT, 60 cameras, M=2*N
 
 out <- mc.cSMR_JAGS
 
-summary(window(out, start = 101))
+summary(window(out, start = 11001))
 # summary(window(out.eff,start = 1001))
 # summary(window(out.eff.unS,start = 1001))
 
-plot(window(out,start = 101))
+plot(window(out,start = 1001))
 # plot(window(out.eff,start = 11001))
 # plot(window(out.eff,start = 11001))
 
