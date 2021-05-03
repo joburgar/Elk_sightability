@@ -42,7 +42,7 @@ elk_inv <- elk_inv %>% select(`Serial number`, Status, Date.Deployed, `General l
   rename(Collar.ID = `Serial number`, Loc.Deployed = `General location...11`, Loc.Recovered = `General location...15`)
 elk_inv$Status
 
-# catpure / telemetry metadata
+# capture / telemetry metadata
 glimpse(cptr_telem)
 elk_cptr_telem <- cptr_telem %>% filter(Species=="Roosevelt elk" & Make=="Vectronics") %>%
   select(`WLHID#`, Date, `Serial No.`, `Initial or Recapture`, `Population Unit`,
@@ -76,7 +76,7 @@ elk_cptr_telem <- elk_cptr_telem %>% select(-c(Date.Capture, Date.Release))
 as.data.frame(elk_cptr_telem %>% group_by(Collar.ID) %>% count(Date.Released))
 
 unique(elk_cptr_telem$Collar.ID) #62 collars but 65 entries = Collar.ID 15114, 15120, 22587 were used twice
-unique(elk_inv$Collar.ID) #63 collars and 63 rows
+unique(elk_inv$Collar.ID) #62 collars and 63 rows
 as.data.frame(elk_inv %>% group_by(Collar.ID) %>% count(Date.Deployed))
 
 elk_cptr_telem %>% filter(Collar.ID %in% c("15114", "15120", "22587")) %>%
@@ -141,7 +141,9 @@ collar_pos$Collar.ID <- as.factor(collar_pos$Collar.ID)
 colnames(collar_pos)[3:4] <- c("Latitude", "Longitude")
 
 collar_pos$Date.Time.PST <- with_tz(collar_pos$Date.Time.UTC, tz)
-collar_pos$Time.PST <- times(strftime(collar_pos$Date.Time.PST,"%H:%M:%S", tz))
+# collar_pos$Time.PST <- times(strftime(collar_pos$Date.Time.PST,"%H:%M:%S", tz)) # not sure why this isn't working...
+
+glimpse(collar_pos)
 
 collar_pos <- collar_pos %>% mutate(Year = year(Date.Time.PST), Month = month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
 collar_pos %>% filter(Collar.ID %in% c("15114", "15120", "22587")) %>% group_by(Collar.ID, Year) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
@@ -153,7 +155,7 @@ length(common_collars) # 54 common Collar.IDs
 collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # currently 32 collars out not yet included in meta data files
 
 #- add in metadata to collar_pos file, while only selecting pertinent columns
-collar_dat <- left_join(collar_pos %>% select(Collar.ID, Latitude, Longitude, Mortality.Status, Date.Time.PST, Time.PST, Year, Month, jDay),
+collar_dat <- left_join(collar_pos %>% select(Collar.ID, Latitude, Longitude, Mortality.Status, Date.Time.PST, Year, Month, jDay),
                         collar_meta %>% select(Collar.ID, WLHID, Animal.ID, Age.Class, Sex, Pop.Unit.Release, Date.Released))
 
 # need to update collar 22587 with Elk013 info for all datapoints prior to 2018
@@ -220,11 +222,11 @@ collar.dates <- telem_dat %>% group_by(Collar.ID, Animal.ID) %>% summarise(min.D
 as.data.frame(collar.dates)
 min(collar.dates$min.Date); max(collar.dates$min.Date)
 # [1] "2017-01-25 06:00:37 PST"
-# [1] "2020-06-26 08:02:38 PDT"
+# [1] "2021-03-26 01:01:06 PDT"
 
 min(collar.dates$max.Date); max(collar.dates$max.Date)
 # [1] "2018-11-07 06:13:14 PST"
-# [1] "2021-03-26 01:01:06 PDT"
+# [1] "2021-05-03 02:01:38 PDT"
 
 # will still need to clean collar data to make sure not included dates when collaring individuals
 # speak to bios about # days post collaring to start including animals in analysis
@@ -232,7 +234,6 @@ collar_annual_fixes <- telem_dat %>% group_by(Collar.ID, Year) %>% summarise(Cou
 ggplot(collar_annual_fixes, aes(fill=Collar.ID, y=Counts, x=Collar.ID))+
   geom_bar(position="dodge", stat="identity")+
   facet_wrap(~Year)
-
 
 annual.fixes <- ggplot(data = collar_annual_fixes, aes(x = reorder(Collar.ID, -Counts), y = Counts, fill= Collar.ID)) +
   geom_bar(stat = "identity") +
@@ -469,10 +470,20 @@ write.csv(EPU_priority, "out/EPU_priority.csv")
 
 
 ###---
+telem_dat %>% filter(EPU.Fix=="Sechelt Peninsula" & Year>2019) %>%
+  count(Collar.ID, Animal.ID)
+
 Rd1_telem <- telem_dat %>% filter(EPU.Fix=="Sechelt Peninsula" | EPU.Fix=="Skwawka")
+Rd1_telem %>% filter(Year>2019) %>%
+  summarise(min(Latitude),min(Longitude), max(Latitude), max(Longitude))
+
 ###--- create sf object from sampling location data frame
 Rd1_telem <- st_as_sf(Rd1_telem, coords = c("Latitude","Longitude"), crs = 4326)
-write.csv(Rd1_telem,"data/Rd1_telem.csv")
+summary(Rd1_telem)
+
+ggplot() +
+  geom_sf(data = Rd1_telem %>% filter(Animal.ID=="Elk020"))
+
 
 ###--- view OSM data and download appropriate section for study area
 Sechelt_bbox <- st_bbox(EPU_latlon %>% filter(EPU_Unit_N=="Sechelt Peninsula"))
@@ -499,6 +510,13 @@ Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
   labs(title = "Elk Locations 2020-2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
   geom_point(data=telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2019,],
              aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+
+Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
+  labs(title = "Elk Locations 2020-2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2019 &
+                              telem_dat$Animal.ID!="Elk020",],
+             aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+
 
 Cairo(file="out/Sechelt_plot_202021.PNG",
       type="png",
