@@ -47,8 +47,10 @@ retrieve_geodata_aoi <- function (ID=ID){
 cam_metadata <- read.csv("data/SP_deployment_station_data.csv")
 cam_metadata <- st_as_sf(cam_metadata,coords = c("Longitude", "Latitude"), crs = 4326) %>% st_transform(3005)
 
+random_lcn <- st_read(paste0(getwd(),"/data/elk_all_sites.kml")) %>% st_transform(3005)
+
 # create initial aoi
-aoi <- st_as_sfc(st_bbox(cam_metadata))
+aoi <- st_as_sfc(st_bbox(random_lcn))
 aoi <- st_buffer(aoi, dist=1000)
 aoi <- aoi %>% st_transform(3005)
 
@@ -56,6 +58,7 @@ aoi <- aoi %>% st_transform(3005)
 ggplot()+
   geom_sf(data = aoi)+
   geom_sf(data = cam_metadata)+
+  geom_sf(data = random_lcn, col="blue")
   theme_minimal()
 
 ###--- Import spatial files
