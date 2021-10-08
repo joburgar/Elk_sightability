@@ -49,59 +49,36 @@ cam_metadata <- st_as_sf(cam_metadata,coords = c("Longitude", "Latitude"), crs =
 
 random_lcn <- st_read(paste0(getwd(),"/data/elk_all_sites.kml")) %>% st_transform(3005)
 
+ggplot()+
+  geom_sf(data = cam_metadata)+
+  geom_sf(data = random_lcn, col="blue")+
+  theme_minimal()
+
 # create initial aoi
 aoi <- st_as_sfc(st_bbox(random_lcn))
-aoi <- st_buffer(aoi, dist=1000)
+aoi <- st_buffer(aoi, dist=2000)
 aoi <- aoi %>% st_transform(3005)
 
 # check loaded properly
 ggplot()+
   geom_sf(data = aoi)+
   geom_sf(data = cam_metadata)+
-  geom_sf(data = random_lcn, col="blue")
+  geom_sf(data = random_lcn, col="blue")+
   theme_minimal()
 
-###--- Import spatial files
+  ###---
+  # want to get average distance / area for centre of each land based cell (i.e., what is on the landscape)
+  # and then compare that to what the camera location site average distance / covariate type is
+  # to determine if sites achieve stratified sampling or are biased one way or another (i.e., close to roads)
 
-# Import TEM
-# WHSE_TERRESTRIAL_ECOLOGY.STE_TEM_ATTRIBUTE_POLYS_SVW
-bcdc_search("TEM", res_format = "wms")
-aoi.TEM <- retrieve_geodata_aoi(ID = "0a83163b-a62f-4ce6-a9a1-21c228b0c0a3")
+  # do this for
+  # biogeoclimatic zone (proportion habitat across landscape vs proportion of sites with that type of habitat)
+  # site series (proportion habitat across landscape vs proportion of sites with that type of habitat)
+  # roads (distance to primary vs trails)
+  # waterbodies (distance)
+  ###---
 
-# review report for codes
-# https://a100.gov.bc.ca/pub/acat/documents/r35895/tem_4678_rpt_1363697818384_6de51d6c988801e3369406fe9a22713aa4dca27f63de77d54bf44b70a246813b.pdf
-# recall that site series labels are duplicated between biogeoclimatic labels so need to go by map cde for plotting
-
-glimpse(aoi.TEM)
-aoi.TEM$Area_km2 <-  st_area(aoi.TEM)*1e-6
-aoi.TEM$Area_km2 <- drop_units(aoi.TEM$Area_km2)
-
-aoi.TEM %>% count(BIOGEOCLIMATIC_LBL) %>% st_drop_geometry()
-as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL) %>% count(SITE_SERIES_LBL_CPNT_1) %>% st_drop_geometry())
-as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL,SITE_SERIES_LBL_CPNT_1) %>% summarise(sum(Area_km2)) %>% st_drop_geometry())
-
-aoi.TEM %>% count(SITE_SERIES_MAP_CDE_LBL_CPNT_1) %>% st_drop_geometry()
-aoi.TEM %>% count(ECOSYSTEM_LBL_CPNT_1) %>% st_drop_geometry() # would need to group to make useful
-as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL) %>% count(ECOSYSTEM_DECILE_CPNT_1) %>% st_drop_geometry())
-
-ggplot()+
-  geom_sf(data=aoi.TEM, aes(fill=SITE_SERIES_MAP_CDE_LBL_CPNT_1, col=SITE_SERIES_MAP_CDE_LBL_CPNT_1))+
-  geom_sf(data=cam_metadata)
-
-
-
-###---
-# want to get average distance / area for centre of each land based cell (i.e., what is on the landscape)
-# and then compare that to what the camera location site average distance / covariate type is
-# to determine if sites achieve stratified sampling or are biased one way or another (i.e., close to roads)
-
-# do this for
-# biogeoclimatic zone (proportion habitat across landscape vs proportion of sites with that type of habitat)
-# site series (proportion habitat across landscape vs proportion of sites with that type of habitat)
-# roads (distance to primary vs trails)
-# waterbodies (distance)
-#
-
+###--- IMPORT SPATIAL (COVARIATE) FILES ---###
 ###--- load covariates from bcmaps
 # digital elevation raster
 aoi_raster <- cded_raster(aoi)
@@ -123,6 +100,31 @@ ggplot()+
 
 ###--- load covariates from bcdata
 # using the bc data warehouse option to clip to aoi
+
+# TEM
+# WHSE_TERRESTRIAL_ECOLOGY.STE_TEM_ATTRIBUTE_POLYS_SVW
+# bcdc_search("TEM", res_format = "wms")
+aoi.TEM <- retrieve_geodata_aoi(ID = "0a83163b-a62f-4ce6-a9a1-21c228b0c0a3")
+
+# review report for codes
+# https://a100.gov.bc.ca/pub/acat/documents/r35895/tem_4678_rpt_1363697818384_6de51d6c988801e3369406fe9a22713aa4dca27f63de77d54bf44b70a246813b.pdf
+# recall that site series labels are duplicated between biogeoclimatic labels so need to go by map cde for plotting
+
+# glimpse(aoi.TEM)
+#
+# aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL) %>% summarise(sum(Area_km2)) %>% st_drop_geometry()
+# as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL) %>% count(SITE_SERIES_LBL_CPNT_1) %>% st_drop_geometry())
+# as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL,SITE_SERIES_LBL_CPNT_1) %>% summarise(sum(Area_km2)) %>% st_drop_geometry())
+#
+# aoi.TEM %>% count(SITE_SERIES_MAP_CDE_LBL_CPNT_1) %>% st_drop_geometry()
+# aoi.TEM %>% count(ECOSYSTEM_LBL_CPNT_1) %>% st_drop_geometry() # would need to group to make useful
+# as.data.frame(aoi.TEM %>% group_by(BIOGEOCLIMATIC_LBL) %>% count(ECOSYSTEM_DECILE_CPNT_1) %>% st_drop_geometry())
+glimpse(aoi.TEM)
+
+ggplot()+
+  geom_sf(data=aoi.TEM, aes(fill=SITE_SERIES_MAP_CDE_LBL_CPNT_1, col=SITE_SERIES_MAP_CDE_LBL_CPNT_1))+
+  geom_sf(data=cam_metadata)
+
 
 # watercourses layer
 # bcdc_search("NTS BC River", res_format = "wms")
@@ -152,18 +154,18 @@ ggplot()+
 
 # approved WHAs & UWRs (GAR Orders)
 # bcdc_search("WHA", res_format = "wms")
-aoi.WHA <- retrieve_geodata_aoi(ID = "b19ff409-ef71-4476-924e-b3bcf26a0127")
-
-ggplot()+
-  geom_sf(data=aoi.WHA)+
-  geom_sf(data=cam_metadata)
+# aoi.WHA <- retrieve_geodata_aoi(ID = "b19ff409-ef71-4476-924e-b3bcf26a0127")
+# just one goshawk WHA in the north-west (not worth noting)
+# ggplot()+
+#   geom_sf(data=aoi.WHA)+
+#   geom_sf(data=cam_metadata)
 
 # bcdc_search("UWR", res_format = "wms")
-aoi.UWR <- retrieve_geodata_aoi(ID = "712bd887-7763-4ed3-be46-cdaca5640cc1")
-
-ggplot()+
-  geom_sf(data=aoi.UWR)+
-  geom_sf(data=cam_metadata)
+# aoi.UWR <- retrieve_geodata_aoi(ID = "712bd887-7763-4ed3-be46-cdaca5640cc1")
+# no approved UWRs on the SP, plot proposed instead (from kml)
+# ggplot()+
+#   geom_sf(data=aoi.UWR)+
+#   geom_sf(data=cam_metadata)
 
 # vegetation data (VRI)
 # bcdc_search("VRI", res_format = "wms")
@@ -180,4 +182,74 @@ aoi.VRI$PROJ_HEIGHT_1_cat <- as.factor(ifelse(aoi.VRI$PROJ_HEIGHT_1 < 10, "H0-10
 
 ggplot()+
   geom_sf(data=aoi.VRI, aes(fill=PROJ_HEIGHT_1_cat, col=PROJ_HEIGHT_1_cat))+
-  geom_sf(data=cam_metadata)
+  geom_sf(data=cam_metadata) +
+  geom_sf(data=random_lcn, col="blue")
+
+###--- JOIN COVARIATE TO POINT DATA ---###
+# run first for actual site locations and then for random locations
+
+###--- function to join covariate type / distance data
+
+retrieve_covariate_dist <- function (point.dat=point.dat, cov.dat=cov.dat, cov.dat.col=cov.dat.col){
+
+  tmp <- cov.dat[,cov.dat.col] %>% st_drop_geometry()
+  colnames(tmp)[1] <- "cov.type"
+
+  cov.dist <- st_nn(point.dat %>% st_transform(crs=26910),
+                    cov.dat %>% st_transform(crs=26910),
+                    k=1, returnDist = T)
+  point.dat$cov.dist <- unlist(cov.dist$dist)
+  point.dat$cov.type <- unlist(cov.dist$nn)
+  point.dat$cov.type <- tmp$cov.type[match(point.dat$cov.type,rownames(tmp))]
+
+  return(point.dat %>% dplyr::select(cov.dist, cov.type) %>% st_drop_geometry())
+}
+
+
+# points <- random_lcn
+
+
+#- elevation
+# for some reason it's not working?!?!?
+# elev.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.cded, cov.dat.col=1)
+# elev.dist.rndm <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.cded, cov.dat.col=1)
+
+#- biogeoclimatic (might want proportion of cam points compared to proportion of area on SP)
+BEC.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.BEC, cov.dat.col=8)
+# BEC.dist.rndm <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.BEC, cov.dat.col=8) # might be better to do as area
+
+ECOprov.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOprov, cov.dat.col=4)
+ECOreg.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOreg, cov.dat.col=4)
+ECOsec.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOsec, cov.dat.col=4)
+
+#- TEM
+colnames(aoi.TEM)[14]
+TEM.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.TEM, cov.dat.col=14)
+
+#- roads
+glimpse(aoi.DRA)
+DRA.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.DRA, cov.dat.col=18)
+DRA.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.DRA, cov.dat.col=18)
+
+#- waterbodies
+glimpse(aoi.RLW)
+RLW.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.RLW, cov.dat.col=6)
+RLW.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.RLW, cov.dat.col=6)
+
+#- watershed
+glimpse(aoi.FWA)
+FWA.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.FWA, cov.dat.col=13)
+FWA.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.FWA, cov.dat.col=13)
+
+#- VRI
+names(aoi.VRI)
+VRI.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.VRI, cov.dat.col=136)
+# summary(VRI.dist.cam$cov.type, na.rm=TRUE)
+VRI.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.VRI, cov.dat.col=136)
+# summary(VRI.dist.random$cov.type, na.rm=TRUE)
+
+################################################################################
+save.image("data/05_camera_metadata.RData")
+# load("data/05_camera_metadata.RData")
+################################################################################
+
