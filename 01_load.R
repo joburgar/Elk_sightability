@@ -19,14 +19,9 @@
 .libPaths("C:/Program Files/R/R-4.0.5/library") # to ensure reading/writing libraries from C drive
 tz = Sys.timezone() # specify timezone in BC
 
-# overall process:
-#- Upload collar data
-#- Upload Animal metadata and collar metadata (if applicable)
-#- Upload EPU metadata (from SBOT and inventory files)
-
 # Load Packages
 list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda",
-                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook")
+                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -93,7 +88,7 @@ Roads_line <- st_read(dsn=BCWData_Dir, layer = "DRA_MPAR_line")
 
 #- EPU polygon shapefile
 GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
-EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
+EPU_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
 
 
 #####################################################################################
@@ -105,15 +100,14 @@ tmpshot <- fileSnapshot(collar_pos_path)
 recent_file <- rownames(tmpshot$info[which.max(tmpshot$info$mtime),])
 
 # Import collar data with valid fixes, with locations inside BC, selecting only pertinent columns, transforming date field into R formats
-collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE, sep=";") %>%
+collar_pos <- read.csv(paste(collar_pos_path, recent_file, sep=""), header=TRUE, sep=",") %>%
   type.convert() %>%
   filter(Fix.Type=="3D Validated") %>%
   filter(Mortality.Status!="Mortality No Radius")%>%
-  filter(between(Longitude..deg., st_bbox(bc_latlon)$xmin, st_bbox(bc_latlon)$xmax)) %>%
-  filter(between(Latitude..deg., st_bbox(bc_latlon)$ymin, st_bbox(bc_latlon)$ymax)) %>%
-  select(Collar.ID, UTC.Date, Latitude..deg., Longitude..deg., Mortality.Status) %>%
-  mutate(Date.Time.UTC = ymd_hms(UTC.Date, truncated = 1, tz="UTC"))
-
+  filter(between(Longitude.deg., st_bbox(bc_latlon)$xmin, st_bbox(bc_latlon)$xmax)) %>%
+  filter(between(Latitude.deg., st_bbox(bc_latlon)$ymin, st_bbox(bc_latlon)$ymax)) %>%
+  select(Collar.ID, Acq..Time..UTC., Latitude.deg., Longitude.deg., Mortality.Status) %>%
+  mutate(Date.Time.UTC = ymd_hms(Acq..Time..UTC., truncated = 1, tz="UTC"))
 
 ###--- Import collar metadata
 # check if these are the latest files and they encapsulate the correct range of celss
