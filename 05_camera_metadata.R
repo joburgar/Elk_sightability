@@ -42,6 +42,10 @@ retrieve_geodata_aoi <- function (ID=ID){
 }
 
 #####################################################################################
+#- EPU polygon shapefile
+GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
+EPU_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
+
 
 # load camera locations
 cam_metadata <- read.csv("data/SP_deployment_station_data.csv")
@@ -62,6 +66,7 @@ aoi <- aoi %>% st_transform(3005)
 # check loaded properly
 ggplot()+
   geom_sf(data = aoi)+
+  geom_sf(data= EPU_poly, col="red")+
   geom_sf(data = cam_metadata)+
   geom_sf(data = random_lcn, col="blue")+
   theme_minimal()
@@ -216,9 +221,33 @@ retrieve_covariate_dist <- function (point.dat=point.dat, cov.dat=cov.dat, cov.d
 
 #- biogeoclimatic (might want proportion of cam points compared to proportion of area on SP)
 BEC.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.BEC, cov.dat.col=8)
-# BEC.dist.rndm <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.BEC, cov.dat.col=8) # might be better to do as area
+BEC.cam.tbl <- BEC.dist.cam %>% count(cov.type)
+
+BEC.prop.EPU <- aoi.BEC %>% st_intersection(EPU_poly) %>% st_transform(crs=26910) # for m2
+BEC.prop.EPU$Area_km2 <- st_area(BEC.prop.EPU)*1e-6
+BEC.prop.EPU <- drop_units(BEC.prop.EPU)
+BEC.prop.tbl <- BEC.prop.EPU %>% group_by(MAP_LABEL) %>% summarise(area_km2  = sum(Area_km2)) %>% st_drop_geometry()
+BEC.prop.tbl$prop <- BEC.prop.tbl$area_km2 / (st_area(EPU_poly)*1e-6) %>% drop_units()
+BEC.prop.tbl$num.site <- BEC.cam.tbl$n[match(BEC.prop.tbl$MAP_LABEL, BEC.cam.tbl$cov.type)]
+BEC.prop.tbl$prop.site <- BEC.prop.tbl$num.site / 57
+write.csv(BEC.prop.tbl, "./out/BEC.prop.tbl.csv", row.names = F)
+
 
 ECOprov.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOprov, cov.dat.col=4)
+ECO.cam.tbl <- ECOprov.dist.cam %>% count(cov.type)
+
+ECO.prop.EPU <- aoi.ECOprov %>% st_intersection(EPU_poly) %>% st_transform(crs=26910) # for m2
+ECO.prop.EPU$Area_km2 <- st_area(ECO.prop.EPU)*1e-6
+ECO.prop.EPU <- drop_units(ECO.prop.EPU)
+ECO.prop.tbl <- ECO.prop.EPU %>% group_by(ECOPROVINCE_NAME) %>% summarise(area_km2  = sum(Area_km2)) %>% st_drop_geometry()
+ECO.prop.tbl$prop <- ECO.prop.tbl$area_km2 / (st_area(EPU_poly)*1e-6) %>% drop_units()
+ECO.prop.tbl$num.site <- ECO.cam.tbl$n[match(ECO.prop.tbl$ECOPROVINCE_NAME, ECO.cam.tbl$cov.type)]
+ECO.prop.tbl$prop.site <- ECO.prop.tbl$num.site / 57
+write.csv(ECO.prop.tbl, "./out/ECO.prop.tbl.csv", row.names = F)
+
+# the proportion is the same for ECOprov, ECOreg and ECOsec.
+# ECO (province) Coast and Mountains = (Region) Georgia-Puget Basin = (Section) Southern Pacific Ranges
+# compared to Georgia Depression = Lower Mainland = Georgia Lowland
 ECOreg.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOreg, cov.dat.col=4)
 ECOsec.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.ECOsec, cov.dat.col=4)
 
@@ -227,26 +256,52 @@ colnames(aoi.TEM)[14]
 TEM.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.TEM, cov.dat.col=14)
 
 #- roads
-glimpse(aoi.DRA)
+names(aoi.DRA)
 DRA.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.DRA, cov.dat.col=18)
 DRA.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.DRA, cov.dat.col=18)
 
 #- waterbodies
-glimpse(aoi.RLW)
+names(aoi.RLW)
 RLW.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.RLW, cov.dat.col=6)
 RLW.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.RLW, cov.dat.col=6)
 
 #- watershed
-glimpse(aoi.FWA)
+names(aoi.FWA)
 FWA.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.FWA, cov.dat.col=13)
 FWA.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.FWA, cov.dat.col=13)
+
+dist.cam <- cbind(DRA.dist.cam, RLW.dist.cam, FWA.dist.cam)
+colnames(dist.cam) <- c("road.dist.cam", "road.surface.cam", "RLW.dist.cam", "RLW.type.cam", "wtrshd.dist.cam", "wtrshd.type.cam")
+dist.cam %>% group_by(road.surface.cam) %>% summarise(mean = mean(road.dist.cam))
+write.csv(dist.cam, "./out/dist.cam.csv")
+
+dist.random <- cbind(DRA.dist.random, RLW.dist.random, FWA.dist.random)
+colnames(dist.random) <- c("road.dist.rndm", "road.surface.rndm", "RLW.dist.rndm", "RLW.type.rndm", "wtrshd.dist.rndm", "wtrshd.type.rndm")
+write.csv(dist.random, "./out/dist.rndm.csv")
+
 
 #- VRI
 names(aoi.VRI)
 VRI.dist.cam <- retrieve_covariate_dist(point.dat=cam_metadata, cov.dat=aoi.VRI, cov.dat.col=136)
-# summary(VRI.dist.cam$cov.type, na.rm=TRUE)
+summary(VRI.dist.cam$cov.type, na.rm=TRUE)
+VRI.dist.cam %>% filter(!is.na(VRI.dist.cam)) %>%
+  summarise(mean = mean(cov), min = min(PROJ_HEIGHT_1), max=max(PROJ_HEIGHT_1), sd = sd(PROJ_HEIGHT_1))
+VRI.dist.cam$PROJ_HEIGHT_1_cat <- as.factor(ifelse(VRI.dist.cam$cov.type < 10, "H0-10",
+                                              ifelse(VRI.dist.cam$cov.type < 20, "H10-20",
+                                                     ifelse(VRI.dist.cam$cov.type < 30, "H20-30",
+                                                            ifelse(VRI.dist.cam$cov.type < 40, "H30-40",
+                                                                   ifelse(VRI.dist.cam$cov.type < 50, "H40-50", "H50+"))))))# remove NAs
+VRI.cam.tbl <- VRI.dist.cam %>% count(PROJ_HEIGHT_1_cat)
+
 VRI.dist.random <- retrieve_covariate_dist(point.dat=random_lcn, cov.dat=aoi.VRI, cov.dat.col=136)
-# summary(VRI.dist.random$cov.type, na.rm=TRUE)
+VRI.prop.EPU <- aoi.VRI %>% st_intersection(EPU_poly) %>% st_transform(crs=26910) # for m2
+VRI.prop.EPU$Area_km2 <- st_area(VRI.prop.EPU)*1e-6
+VRI.prop.EPU <- drop_units(VRI.prop.EPU)
+VRI.prop.tbl <- VRI.prop.EPU %>% group_by(PROJ_HEIGHT_1_cat) %>% summarise(area_km2  = sum(Area_km2)) %>% st_drop_geometry()
+VRI.prop.tbl$prop <- VRI.prop.tbl$area_km2 / (st_area(EPU_poly)*1e-6) %>% drop_units()
+VRI.prop.tbl$num.site <- VRI.cam.tbl$n[match(VRI.prop.tbl$PROJ_HEIGHT_1_cat, VRI.cam.tbl$PROJ_HEIGHT_1_cat)]
+VRI.prop.tbl$prop.site <- VRI.prop.tbl$num.site / 57
+write.csv(VRI.prop.tbl, "./out/VRI.prop.tbl.csv", row.names = F)
 
 ################################################################################
 save.image("data/05_camera_metadata.RData")
