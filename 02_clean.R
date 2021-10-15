@@ -225,8 +225,8 @@ min(collar.dates$min.Date); max(collar.dates$min.Date)
 # [1] "2021-03-26 01:01:06 PDT"
 
 min(collar.dates$max.Date); max(collar.dates$max.Date)
-# [1] "2018-11-07 06:13:14 PST"
-# [1] "2021-05-03 02:01:38 PDT"
+# [1] "2017-10-31 21:00:37 PDT"
+# [1] "2021-10-09 03:02:20 PDT"
 
 # will still need to clean collar data to make sure not included dates when collaring individuals
 # speak to bios about # days post collaring to start including animals in analysis
@@ -318,7 +318,7 @@ map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS8
 #   #scale_fill_gradientn(colours = rainbow(10)) +
 #   mytheme
 
-download_date <- substr(recent_file, 11,21)
+download_date <- substr(recent_file, 10,20)
 Collar_plot_2021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
   labs(title = "Elk 2021 Locations", subtitle = paste("Vectronics Data - latest download",download_date, sep=" "),x = "Longitude", y="Latitude")+
   geom_point(data=telem_dat[telem_dat$Year=="2021",], aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
@@ -506,10 +506,31 @@ map <- openmap(c(LAT2,LON1), c(LAT1,LON2), zoom = NULL,
 ## OSM CRS :: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs"
 map.latlon <- openproj(map, projection = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
+cam.metadata.latlon <- st_transform(cam_metadata, crs=4326)
+cam.metadata.latlon$Check <- ifelse(is.na(cam.metadata.latlon$Camera.Deployment.End.Date), "Not Checked",
+                                    ifelse(cam.metadata.latlon$Camera.Deployment.End.Date %in% c("2021-07-29", "2021-06-16"),
+                                           "Removed","Checked"))
+cam.metadata.latlon$Longitude <- st_coordinates(cam.metadata.latlon)[,1]
+cam.metadata.latlon$Latitude <- st_coordinates(cam.metadata.latlon)[,2]
+
+telem_dat %>% count(Month)
+
+telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2020 &
+            telem_dat$Month %in% c("Jun", "Jul", "Aug", "Sep"),] %>% count(Animal.ID)
+
 Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
-  labs(title = "Elk Locations 2020-2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
-  geom_point(data=telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2019,],
-             aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
+  labs(title = "Camera and Elk Locations\nJune - Sept 2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
+  geom_point(data=telem_dat[telem_dat$EPU.Fix=="Sechelt Peninsula" & telem_dat$Year>2020 &
+                              telem_dat$Month %in% c("Jun", "Jul", "Aug", "Sep"),],
+             aes(x=Longitude, y=Latitude, fill=Animal.ID), size=1, shape=21)+
+  geom_point(data = cam.metadata.latlon[cam.metadata.latlon$Check=="Checked",],
+             aes(x=Longitude, y = Latitude),size=2, shape=7, col="deeppink3") +
+  geom_point(data = cam.metadata.latlon[cam.metadata.latlon$Check=="Not Checked",],
+             aes(x=Longitude, y=Latitude),size=2, shape=7, col="darkorange")+
+  geom_point(data = cam.metadata.latlon[cam.metadata.latlon$Check=="Removed",],
+             aes(x=Longitude, y=Latitude),size=2, shape=7, col="darkslategray3")
+
+
 
 Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
   labs(title = "Elk Locations 2020-2021", subtitle = "Sechelt Peninsula", x = "Longitude", y="Latitude")+
@@ -518,7 +539,7 @@ Sechelt_plot_202021 <- OpenStreetMap::autoplot.OpenStreetMap(map.latlon)  +
              aes(x=Longitude, y=Latitude, fill=Animal.ID), size=4, shape=21)
 
 
-Cairo(file="out/Sechelt_plot_202021.PNG",
+Cairo(file="out/Sechelt_plot_2021.PNG",
       type="png",
       width=3000,
       height=2200,
