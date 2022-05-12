@@ -27,7 +27,8 @@
 # collar inventory
 glimpse(collar_inv)
 elk_inv <- collar_inv %>% filter(grepl("Elk", Species) & grepl("Vectronic",Company))
-elk_inv %>% count(`Program (see info files for details)`) # all animals 1 fix/day; rolling +1 hr/ day
+elk_inv %>% count(`Program (see info files for details)`) # 73 collars 1 fix/day, rolling +1 hr/ day; 46 collars 1 fix/11hr
+glimpse(elk_inv)
 
 # need to format dates for R, acting odd coming from excel
 # for excel dates (Windows) treat numeric origin as "1899-12-30" in as.Date for conversion
@@ -36,6 +37,7 @@ elk_inv$DDate <- as.character(elk_inv$`Deployed Date`)
 elk_inv$RDate <- as.character(elk_inv$`Recovered Date`)
 elk_inv$Date.Deployed <- as.Date(as.numeric(elk_inv$DDate), origin = "1899-12-30")
 elk_inv$Date.Recovered <- as.Date(as.numeric(elk_inv$RDate), origin = "1899-12-30")
+glimpse(elk_inv)
 
 elk_inv <- elk_inv %>% select(`Serial number`, Status, Date.Deployed, `General location...11`,
                               Date.Recovered, `General location...15`) %>%
@@ -61,7 +63,7 @@ table(elk_cptr_telem$Pop.Unit.Capture, elk_cptr_telem$Pop.Unit.Release)
 
 elk_cptr_telem$Pop.Unit.Capture <- elk_cptr_telem$Pop.Unit.Capture %>%
   recode("Homathco"="Homathko", "Pitt River*"="Pitt River", "Vancouer River"="Vancouver River", "Haslam"="Haslam-Dodd",
-         "Theodosia"="Theo", "Tzoonie-Narrows"="Narrows", "Deserted-Stakawus"="Deserted", "Skwawaka"="Skwawka")
+         "Theodosia"="Theo", "Tzoonie-Narrows"="Narrows", "Deserted-Stakawus"="Deserted", "Skwawaka"="Skwawka", "Rainy Grey"="Rainy-Grey")
 elk_cptr_telem$Pop.Unit.Release <- elk_cptr_telem$Pop.Unit.Release %>%
   recode("Homathco"="Homathko", "Chahalis"="Chehalis","Haslam"="Haslam-Dodd",
          "Theodosia"="Theo", "Tzoonie-Narrows"="Narrows", "Deserted-Stakawus"="Deserted", "Skwawaka"="Skwawka")
@@ -71,21 +73,27 @@ elk_cptr_telem$Release.Loc <- elk_cptr_telem$Release.Loc %>%
          "Translocated"="Off.Site", "Relocated" = "Off.Site")
 
 elk_cptr_telem %>% filter(Release.Loc=="Off.Site") %>% select(Pop.Unit.Capture, Pop.Unit.Release)
-elk_cptr_telem <- elk_cptr_telem %>% select(-c(Date.Capture, Date.Release))
+elk_cptr_telem <- elk_cptr_telem %>% select(-c(Date.Capture, Date.Release)) %>%
+  filter(!is.na(Collar.ID))
 
 as.data.frame(elk_cptr_telem %>% group_by(Collar.ID) %>% count(Date.Released))
+duplicates<- as.data.frame(elk_cptr_telem %>% group_by(Collar.ID) %>% count(Collar.ID))
 
-unique(elk_cptr_telem$Collar.ID) #62 collars but 65 entries = Collar.ID 15114, 15120, 22587 were used twice
-unique(elk_inv$Collar.ID) #62 collars and 63 rows
-as.data.frame(elk_inv %>% group_by(Collar.ID) %>% count(Date.Deployed))
+unique(elk_cptr_telem$Collar.ID) #101 collars but 105 entries, look for duplicates
+duplicates<- as.data.frame(elk_cptr_telem %>% group_by(Collar.ID) %>% count(Collar.ID)) %>% filter(n==2)
+View(duplicates) #Collar.ID 15114, 15120, 22587, 41268 were used twice
 
-elk_cptr_telem %>% filter(Collar.ID %in% c("15114", "15120", "22587")) %>%
+unique(elk_inv$Collar.ID) #101 collars deployed out of 119
+as.data.frame(elk_inv %>% group_by(Collar.ID) %>% count(Date.Deployed)) #119 deployment dates
+
+elk_cptr_telem %>% filter(Collar.ID %in% c("15114", "15120", "22587", "41268")) %>%
   select(Collar.ID, Date.Captured, Pop.Unit.Capture, Date.Released, Pop.Unit.Release, Sex, Age.Class)
-elk_inv %>% filter(Collar.ID%in% c("15114", "15120", "22587"))
+elk_inv %>% filter(Collar.ID%in% c("15114", "15120", "22587", "41268"))
 
-# Collar.ID 15114 possibly used twice, first translocated to Chehalis in 2015 then to Philips Arm in 2017
+# Collar.ID 15114 used twice, first translocated to Chehalis in 2015 then to Philips Arm in 2017
 # Collar.ID 15120 possibly used twice, first in Sechelt in 2015 then translocated to Philips Arm in 2017
 # Collar.ID 22587 used twice, first in Stave in 2017 then in Skwawka in 2018
+# Collar.ID 41268 used twice, first on March 11, 2021 in Haslam then March 17 in Theodosia (first cow died March 16)
 # 22587     2017-04-11    Stave             2017-04-11    Stave             F     A
 # 22587     2018-03-17    Skwawka           2018-03-17    Skwawka           F     A
 # March 17 is Julian Day 76
@@ -94,9 +102,29 @@ elk_inv %>% filter(Collar.ID%in% c("15114", "15120", "22587"))
 collar_meta <- left_join(elk_cptr_telem, elk_inv)
 
 # group status values into 3
-collar_meta <- collar_meta %>% mutate(Status = case_when(grepl("On hand", Status, ignore.case = TRUE) ~ "Office",
-                           grepl("last", Status, ignore.case = TRUE) ~ "Field.NotOperational",
-                           TRUE ~ "Field.Operational"))
+collar_meta_cleanstatus <- collar_meta %>%
+  mutate(
+    Status = case_when(
+      grepl("On hand", Status, ignore.case = TRUE) ~ "Office",
+      grepl("Retrieved", Status, ignore.case = TRUE) ~ "Office",
+      grepl("Retrived", Status, ignore.case = TRUE) ~ "Office",
+      grepl("last", Status, ignore.case = TRUE) ~ "Field.NotOperational",
+      grepl("not", Status, ignore.case = TRUE) ~ "Field.NotOperational",
+      TRUE ~ "Field.Operational")) %>%
+  arrange(Collar.ID)
+
+full_join (collar_meta, collar_meta_cleanstatus, by=c("Collar.ID", "Date.Captured")) %>%
+  select (Collar.ID, Status.x, Status.y) %>%
+  view()
+# Remove duplicates; keep later entry?
+# collar_meta_rownames <- collar_meta_cleanstatus %>%
+#  mutate(row = row.names(collar_meta_cleanstatus)) %>%
+#  subset(Collar.ID %in% c("15114", "15120", "22587", "41268")) %>%
+#  select(Collar.ID, Date.Captured, row) %>%
+#  view()
+# collar_meta <- collar_meta_cleanstatus[-c(3, 9, 13, 89), ]
+
+collar_meta <- collar_meta_cleanstatus
 
 collar_meta$Status <- as.factor(collar_meta$Status)
 as.data.frame(collar_meta %>% filter(Status=="Field.Operational") %>% count(Pop.Unit.Release))
@@ -111,9 +139,6 @@ collar_whlid %>% filter(!is.na(WLHID)) %>% filter(n>1) # if no rows turn up then
 
 #- add animalID to collar meta data
 colnames(origID)[2] <- "Collar.ID"
-# tmp <- full_join(origID, collar_meta %>% select(Collar.ID, WLHID), by="Collar.ID")
-# tmp %>% filter(duplicated(tmp$Collar.ID))
-# need to use case_when to deal with collar 22587 being used twice, otherwise should be ok for newer Vectronics collars
 
 # so for Animal.ID will need to separate Elk13 and Elk14 in collar_meta based on WHLID (Elk13 is WLHID 16-8261, Elk14 is 18-11025)
 collar_meta <- left_join(collar_meta, origID %>% select(-WLHID), by="Collar.ID")
@@ -141,18 +166,19 @@ collar_pos$Collar.ID <- as.factor(collar_pos$Collar.ID)
 colnames(collar_pos)[3:4] <- c("Latitude", "Longitude")
 
 collar_pos$Date.Time.PST <- with_tz(collar_pos$Date.Time.UTC, tz)
-# collar_pos$Time.PST <- times(strftime(collar_pos$Date.Time.PST,"%H:%M:%S", tz)) # not sure why this isn't working...
+glimpse(collar_pos)
+collar_pos$Time.PST <- format(collar_pos$Date.Time.PST,"%H:%M:%S") # not sure why this isn't working...
 
 glimpse(collar_pos)
 
-collar_pos <- collar_pos %>% mutate(Year = year(Date.Time.PST), Month = month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
-collar_pos %>% filter(Collar.ID %in% c("15114", "15120", "22587")) %>% group_by(Collar.ID, Year) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
-dup.collars <- c("15114", "15120", "22587")
+collar_pos <- collar_pos %>% mutate(Year = year(Date.Time.PST), Month = month(Date.Time.PST,label = T), Time = (Time.PST) , jDay = yday(Date.Time.PST))
+collar_pos %>% filter(Collar.ID %in% c("15114", "15120", "22587", "41268")) %>% group_by(Collar.ID, Year) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
+dup.collars <- c("22587", "41268")
 
 common_collars <- intersect(collar_meta$Collar.ID, collar_pos$Collar.ID)
-length(common_collars) # 54 common Collar.IDs
+length(common_collars) # 91 common Collar.IDs
 
-collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # currently 32 collars out not yet included in meta data files
+collar_pos %>% filter(!Collar.ID %in% common_collars) %>% count(Collar.ID) # currently 12 collars out not yet included in meta data files
 
 #- add in metadata to collar_pos file, while only selecting pertinent columns
 collar_dat <- left_join(collar_pos %>% select(Collar.ID, Latitude, Longitude, Mortality.Status, Date.Time.PST, Year, Month, jDay),
@@ -210,7 +236,7 @@ collar_dat <- collar_dat %>% mutate(Animal.ID = case_when(is.na(Animal.ID) ~ Ani
 #- plot and visual cleaned telemetry data
 
 telem_dat <- collar_dat %>% filter(use.fix=="yes", na.rm=TRUE) # includes animals with meta data and new animals
-nrow(collar_dat) - nrow(telem_dat) # removed 25 erroneous data points
+nrow(collar_dat) - nrow(telem_dat) # removed 49 erroneous data points
 
 telem_dat$Count <- 1 # add count for each fix
 
@@ -222,11 +248,11 @@ collar.dates <- telem_dat %>% group_by(Collar.ID, Animal.ID) %>% summarise(min.D
 as.data.frame(collar.dates)
 min(collar.dates$min.Date); max(collar.dates$min.Date)
 # [1] "2017-01-25 06:00:37 PST"
-# [1] "2021-03-26 01:01:06 PDT"
+# [1] "2022-04-08 08:03:18 PDT"
 
 min(collar.dates$max.Date); max(collar.dates$max.Date)
 # [1] "2017-10-31 21:00:37 PDT"
-# [1] "2021-10-09 03:02:20 PDT"
+# [1] "2022-04-25 07:02:27 PDT"
 
 # will still need to clean collar data to make sure not included dates when collaring individuals
 # speak to bios about # days post collaring to start including animals in analysis
