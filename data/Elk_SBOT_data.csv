@@ -1,0 +1,44 @@
+EPU Unit Name,EPU Land Area (Ha),EPU Land Area (km2),Population Density Class,Population Estimate (2012),Population Density Class (2012),EWR Requirement,EWR available quality,Forage cover availability,Forage cover interspersion,Population Resiliency,Predation Risk,Unregulated Hunting,Region Name
+Alouette,"34,824.46",348.24,Rare to Absent,3,Low,High,Moderate,Moderate,Moderate,Low,Low,High,South Coast Natural Resource Region
+Bear,"16,858.93",168.59,Rare to Absent,3,Low,High,Low,Low,Low,Low,High,Low,South Coast Natural Resource Region
+Brem,"32,151.61",321.52,Rare to Absent,25,Low,High,Low,Low,Low,Low,High,Low,South Coast Natural Resource Region
+Brittain,"29,580.04",295.8,Rare to Absent,50,Medium,Moderate,Low,Low,Low,"{Low .2, Moderate .8}",Low,Low,South Coast Natural Resource Region
+Cap-Seymour,"56,806.63",568.07,Rare to Absent,5,Low,High,Moderate,Low,Low,Low,Low,Low,South Coast Natural Resource Region
+Chehalis,"116,110.73","1,161.11",Rare to Absent,3,Rare to Absent,High,Low,High,High,"{Low .5, Moderate .5}",Low,High,South Coast Natural Resource Region
+Chilliwack,"104,378.12","1,043.78",Rare to Absent,5,Low,Low,Low,Moderate,Moderate,Low,High,High,South Coast Natural Resource Region
+Theo,"64,124.68",641.25,Rare to Absent,30,Low,Low,Moderate,High,Low,Low,Low,Low,South Coast Natural Resource Region
+Clowhom,"45,847.94",458.48,Rare to Absent,60,Medium,High,Low,Moderate,Moderate,Moderate,Low,Low,South Coast Natural Resource Region
+Coquitlam,"25,859.05",258.59,Rare to Absent,5,Low,High,Moderate,Low,Low,Low,Low,Low,South Coast Natural Resource Region
+Deserted,"32,080.95",320.81,Rare to Absent,70,Medium,High,Low,Moderate,Moderate,Moderate,High,Low,South Coast Natural Resource Region
+East Harrison,"337,764.84","3,377.65",Rare to Absent,5,Rare to Absent,High,High,Moderate,Low,Low,High,Low,South Coast Natural Resource Region
+Eldred,"46,192.91",461.93,Rare to Absent,25,Low,High,Low,Low,Moderate,Low,Low,Low,South Coast Natural Resource Region
+Greater Van,"319,342.79","3,193.43",Rare to Absent,0,Rare to Absent,,,,,,,,South Coast Natural Resource Region
+Haslam-Dodd,"47,468.60",474.69,Rare to Absent,125,Medium,Moderate,Low,High,High,Moderate,High,High,South Coast Natural Resource Region
+Hat,"18,601.79",186.02,Rare to Absent,0,Rare to Absent,High,Low,Low,Low,Low,Low,Low,South Coast Natural Resource Region
+Homathko,"47,127.88",471.28,Rare to Absent,40,Low,High,Low,Moderate,High,Moderate,High,Low,South Coast Natural Resource Region
+Howe Sound,"13,791.44",137.91,Rare to Absent,,Rare to Absent,,,,,,,,South Coast Natural Resource Region
+Indian,"28,120.49",281.2,Rare to Absent,50,Medium,High,Moderate,Moderate,Moderate,Moderate,High,Low,South Coast Natural Resource Region
+Lois,"36,576.11",365.76,Rare to Absent,25,Low,Moderate,Low,"{Low .5, Moderate .5}","{Low .75, Moderate .25}",Low,Low,High,South Coast Natural Resource Region
+Lower Lilloett,"126,325.01","1,263.25",Rare to Absent,3,Rare to Absent,High,Low,Moderate,Moderate,Low,High,High,South Coast Natural Resource Region
+Mamquam,"102,599.12","1,025.99",Rare to Absent,15,Low,High,Low,Low,Low,Low,High,High,South Coast Natural Resource Region
+Manning,"65,732.78",657.33,Rare to Absent,0,Rare to Absent,,,,,,,,South Coast Natural Resource Region
+McNab,"32,953.89",329.54,Rare to Absent,100,Medium,Moderate,Low,Moderate,"{Low .5, Moderate .5}",High,Low,Low,South Coast Natural Resource Region
+Moh,"15,150.86",151.51,Rare to Absent,2,Low,High,Low,Low,Low,Low,High,Low,South Coast Natural Resource Region
+Narrows,"35,906.26",359.06,Rare to Absent,95,Medium,Moderate,Low,Low,Low,"{Low .2, Moderate .8}",Low,Low,South Coast Natural Resource Region
+Nelson,"10,584.03",105.84,Rare to Absent,3,Low,Low,High,Moderate,Moderate,Low,Low,Low,South Coast Natural Resource Region
+Orford,"25,552.52",255.53,Rare to Absent,35,Medium,High,Low,High,Moderate,Moderate,High,Low,South Coast Natural Resource Region
+Pitt,"56,925.87",569.26,Rare to Absent,50,Low,High,Moderate,High,High,Moderate,High,High,South Coast Natural Resource Region
+Powell-Daniels,"47,229.01",472.29,Rare to Absent,50,Medium,High,Low,Low,Moderate,Moderate,Low,Low,South Coast Natural Resource Region
+Quatum,"32,843.00",328.43,Rare to Absent,30,Low,High,Low,High,Low,Low,High,Low,South Coast Natural Resource Region
+Rainy-Gray,"48,483.64",484.84,Rare to Absent,60,Medium,Moderate,Moderate,High,Moderate,Moderate,Low,High,South Coast Natural Resource Region
+Redonda Islands,"28,700.21",287,Rare to Absent,6,Low,Low,Low,Moderate,Low,Low,Low,Low,South Coast Natural Resource Region
+Sechelt Peninsula,"39,016.80",390.17,Rare to Absent,200,High,"{Low .8, Moderate .2}",Low,Moderate,High,High,Low,High,South Coast Natural Resource Region
+Skagit,"97,299.05",972.99,Rare to Absent,3,Rare to Absent,Low,Low,Moderate,Low,Low,Low,High,South Coast Natural Resource Region
+Skwawka,"22,774.07",227.74,Rare to Absent,60,Medium,High,Low,Low,Moderate,"{Low .5, Moderate .5}",High,Low,South Coast Natural Resource Region
+Southgate,"43,553.79",435.54,Rare to Absent,26,Low,High,Low,Moderate,High,Low,High,Low,South Coast Natural Resource Region
+Squamish,"221,854.36","2,218.54",Rare to Absent,50,Low,High,Low,"{Low .5, Moderate .5}",Moderate,Moderate,High,High,South Coast Natural Resource Region
+Stave,"60,739.94",607.4,Rare to Absent,40,Low,High,Low,High,Moderate,Moderate,Low,High,South Coast Natural Resource Region
+Texada,"31,729.58",317.3,Rare to Absent,0,Rare to Absent,,,,,,,,South Coast Natural Resource Region
+Toba,"187,476.15","1,874.76",Rare to Absent,30,Low,High,Low,Moderate,Moderate,"{Low .5, Moderate .5}",High,Low,South Coast Natural Resource Region
+Upper Lilloett,"298,890.53","2,988.91",Rare to Absent,1,Rare to Absent,High,Moderate,High,Moderate,Low,High,Low,South Coast Natural Resource Region
+Vancouver,"31,066.03",310.66,Rare to Absent,60,Medium,High,Low,High,Moderate,Low,High,High,South Coast Natural Resource Region
