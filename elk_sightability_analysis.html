@@ -181,37 +181,129 @@ pre code {
 <p>experimental surveys: surveys w/ telemetry searches (only non-incidental observations) Observed = 1 if collared animal seen Observed = 0 if collared animal searched for</p>
 <p>operational surveys: inventory surveys (only non-telemetry observations)</p>
 <p>List of EPUs:</p>
+<pre><code>##  [1] &quot;Alouette&quot;          &quot;Bear&quot;              &quot;Brem&quot;             
+##  [4] &quot;Brittain&quot;          &quot;Cap-Seymour&quot;       &quot;Chehalis&quot;         
+##  [7] &quot;Clowhom&quot;           &quot;Coquitlam&quot;         &quot;Deserted-Stakawus&quot;
+## [10] &quot;East Knight&quot;       &quot;Eldred&quot;            &quot;Franklin&quot;         
+## [13] &quot;Haslam&quot;            &quot;Hat&quot;               &quot;Homathko&quot;         
+## [16] &quot;Indian&quot;            &quot;Lois&quot;              &quot;Lower Lillooet&quot;   
+## [19] &quot;Mamquam&quot;           &quot;McNab&quot;             &quot;Moh&quot;              
+## [22] &quot;Nelson&quot;            &quot;Orford&quot;            &quot;Phillips&quot;         
+## [25] &quot;Pitt&quot;              &quot;Powell-Daniels&quot;    &quot;Quadra&quot;           
+## [28] &quot;Quatam&quot;            &quot;Rainy-Gray&quot;        &quot;Redonda Islands&quot;  
+## [31] &quot;Sechelt Peninsula&quot; &quot;Skwawka&quot;           &quot;Southgate&quot;        
+## [34] &quot;Squamish&quot;          &quot;Stafford/Apple&quot;    &quot;Stave&quot;            
+## [37] &quot;Theo&quot;              &quot;Toba&quot;              &quot;Tzoonie-Narrows&quot;  
+## [40] &quot;Upper Lillooet&quot;    &quot;Vancouver&quot;</code></pre>
 <p>EPU strata guide:</p>
-<pre class="r"><code># Make all numeric fields integers
-obs &lt;- obs %&gt;%
-  mutate(year = as.integer(year),
-         stratum = as.integer(stratum),
-         total = as.integer(total),
-         cows = as.integer(cows),
-         calves = as.integer(calves),
-         spikes = as.integer(spikes),
-         bulls = as.integer(bulls),
-         unclass = as.integer(unclass),
-         voc = as.integer(voc),
-         grpsize = as.integer(grpsize))
-
-# make sure totals = sum of cows, calves, etc
-obs %&gt;%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %&gt;%
-  view()
-# If records show up, use code below to add unclassified individuals &amp; re-check
-obs &lt;- obs %&gt;%
-  mutate(
-    unclass = if_else(
-      total == (cows+calves+spikes+bulls+unclass), unclass,
-      total-((cows+calves+spikes+bulls)))
-  )
-obs %&gt;%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %&gt;%
-  view() # all good now</code></pre>
+<pre><code>## [1] &quot;2016&quot;</code></pre>
+<pre><code>## # A tibble: 12 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Brittain                1
+##  2 Chehalis                2
+##  3 Deserted-Stakawus       3
+##  4 Homathko                4
+##  5 Lower Lillooet          5
+##  6 Sechelt Peninsula       6
+##  7 Skwawka                 7
+##  8 Southgate               8
+##  9 Squamish                9
+## 10 Toba                   10
+## 11 Tzoonie-Narrows        11
+## 12 Vancouver              12</code></pre>
+<pre><code>## [1] &quot;2017&quot;</code></pre>
+<pre><code>## # A tibble: 15 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Brem                    1
+##  2 Clowhom                 2
+##  3 Haslam                  3
+##  4 Indian                  4
+##  5 McNab                   5
+##  6 Orford                  6
+##  7 Pitt                    7
+##  8 Powell-Daniels          8
+##  9 Quatam                  9
+## 10 Rainy-Gray             10
+## 11 Sechelt Peninsula      11
+## 12 Southgate              12
+## 13 Stave                  13
+## 14 Theo                   14
+## 15 Tzoonie-Narrows        15</code></pre>
+<pre><code>## [1] &quot;2018&quot;</code></pre>
+<pre><code>## # A tibble: 15 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Brittain                1
+##  2 Chehalis                2
+##  3 Deserted-Stakawus       3
+##  4 Homathko                4
+##  5 Indian                  5
+##  6 Lower Lillooet          6
+##  7 Rainy-Gray              7
+##  8 Sechelt Peninsula       8
+##  9 Skwawka                 9
+## 10 Southgate              10
+## 11 Squamish               11
+## 12 Stave                  12
+## 13 Toba                   13
+## 14 Tzoonie-Narrows        14
+## 15 Vancouver              15</code></pre>
+<pre><code>## [1] &quot;2019&quot;</code></pre>
+<pre><code>## # A tibble: 12 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Brittain                1
+##  2 Chehalis                2
+##  3 Haslam                  3
+##  4 Lower Lillooet          4
+##  5 McNab                   5
+##  6 Pitt                    6
+##  7 Powell-Daniels          7
+##  8 Quatam                  8
+##  9 Rainy-Gray              9
+## 10 Sechelt Peninsula      10
+## 11 Theo                   11
+## 12 Tzoonie-Narrows        12</code></pre>
+<pre><code>## [1] &quot;2020&quot;</code></pre>
+<pre><code>## # A tibble: 13 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Clowhom                 1
+##  2 Deserted-Stakawus       2
+##  3 Homathko                3
+##  4 Indian                  4
+##  5 Orford                  5
+##  6 Rainy-Gray              6
+##  7 Sechelt Peninsula       7
+##  8 Skwawka                 8
+##  9 Southgate               9
+## 10 Squamish               10
+## 11 Stave                  11
+## 12 Toba                   12
+## 13 Vancouver              13</code></pre>
+<pre><code>## [1] &quot;2021&quot;</code></pre>
+<pre><code>## # A tibble: 14 x 2
+##    EPU               Stratum
+##    &lt;chr&gt;               &lt;int&gt;
+##  1 Brittain                1
+##  2 Chehalis                2
+##  3 Haslam                  3
+##  4 Lower Lillooet          4
+##  5 McNab                   5
+##  6 Pitt                    6
+##  7 Powell-Daniels          7
+##  8 Quatam                  8
+##  9 Rainy-Gray              9
+## 10 Sechelt Peninsula      10
+## 11 Skwawka                11
+## 12 Squamish               12
+## 13 Theo                   13
+## 14 Tzoonie-Narrows        14</code></pre>
 </div>
-<div id="analysis" class="section level1">
-<h1>Analysis</h1>
+<div id="mht-analysis" class="section level1">
+<h1>mHT Analysis</h1>
 <div id="section" class="section level2">
 <h2>2016</h2>
 <pre class="r"><code># 2016
@@ -273,30 +365,59 @@ results.all.2016 &lt;-print(est.2016)</code></pre>
 ##  VarSamp VarSight   VarMod 
 ##  205,726   38,631   81,804</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2016$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2016$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2016$Unit)
 for(i in 1:length(eff.2016$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2016 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2016 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   36 ;   95 % CI = (  24 ,  152 )
+## 
+## [1] tau.hat =    393 ;   95 % CI = (   157 ,  2,528 )
+## 
+## [1] tau.hat =   70 ;   95 % CI = (  47 ,  374 )
+## 
+## [1] tau.hat =  161 ;   95 % CI = (  83 ,  907 )
+## 
+## [1] tau.hat =   44 ;   95 % CI = (  20 ,  284 )
+## 
+## [1] tau.hat =    325 ;   95 % CI = (   166 ,  1,686 )
+## 
+## [1] tau.hat =  105 ;   95 % CI = (  72 ,  321 )
+## 
+## [1] tau.hat =   66 ;   95 % CI = (  41 ,  407 )
+## 
+## [1] tau.hat =    389 ;   95 % CI = (   193 ,  2,139 )
+## 
+## [1] tau.hat =   48 ;   95 % CI = (  27 ,  274 )
+## 
+## [1] tau.hat =   56 ;   95 % CI = (  39 ,  176 )
+## 
+## [1] tau.hat =   58 ;   95 % CI = (  39 ,  251 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2016 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brittain               36     301       0     266       35
-## Chehalis              393 111,300  93,625  13,549    4,126
-## Deserted-Stakawus      70   1,537       0   1,404      132
-## Homathko              161  12,887   8,640   3,551      695
-## Lower Lillooet         44   1,278     814     412       52
-## Sechelt Peninsula     325  48,129  41,318   3,988    2,823
-## Skwawka               105   1,603       0   1,310      293
-## Southgate              66   1,747     188   1,444      116
-## Squamish              389  75,827  60,745  11,055    4,027
-## Toba                   48   1,005     395     550       60
-## Tzoonie-Narrows        56     474       0     391       84
-## Vancouver              58     802       0     713       89</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brittain               36     301       0     266       35      24     152
+## Chehalis              393 111,300  93,625  13,549    4,126     157   2,528
+## Deserted-Stakawus      70   1,537       0   1,404      132      47     374
+## Homathko              161  12,887   8,640   3,551      695      83     907
+## Lower Lillooet         44   1,278     814     412       52      20     284
+## Sechelt Peninsula     325  48,129  41,318   3,988    2,823     166   1,686
+## Skwawka               105   1,603       0   1,310      293      72     321
+## Southgate              66   1,747     188   1,444      116      41     407
+## Squamish              389  75,827  60,745  11,055    4,027     193   2,139
+## Toba                   48   1,005     395     550       60      27     274
+## Tzoonie-Narrows        56     474       0     391       84      39     176
+## Vancouver              58     802       0     713       89      39     251</code></pre>
+<pre class="r"><code>results.strat.2016 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 <div id="section-1" class="section level2">
 <h2>2017</h2>
@@ -362,33 +483,68 @@ results.all.2017 &lt;-print(est.2017)</code></pre>
 ##  VarSamp VarSight   VarMod 
 ##  394,992  267,791  164,687</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2017$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2017$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2017$Unit)
 for(i in 1:length(eff.2017$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2017 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2017 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   7 ;   95 % CI = (  5 ,  36 )
+## 
+## [1] tau.hat =  132 ;   95 % CI = (  63 ,  829 )
+## 
+## [1] tau.hat =    249 ;   95 % CI = (   115 ,  1,495 )
+## 
+## [1] tau.hat =   58 ;   95 % CI = (  38 ,  215 )
+## 
+## [1] tau.hat =  135 ;   95 % CI = (  67 ,  793 )
+## 
+## [1] tau.hat =  153 ;   95 % CI = (  84 ,  827 )
+## 
+## [1] tau.hat =  107 ;   95 % CI = (  50 ,  636 )
+## 
+## [1] tau.hat =    215 ;   95 % CI = (    94 ,  1,332 )
+## 
+## [1] tau.hat =   51 ;   95 % CI = (  33 ,  293 )
+## 
+## [1] tau.hat =    229 ;   95 % CI = (   113 ,  1,378 )
+## 
+## [1] tau.hat =    253 ;   95 % CI = (   127 ,  1,346 )
+## 
+## [1] tau.hat =    735 ;   95 % CI = (   224 ,  5,312 )
+## 
+## [1] tau.hat =   60 ;   95 % CI = (  41 ,  185 )
+## 
+## [1] tau.hat =   89 ;   95 % CI = (  47 ,  521 )
+## 
+## [1] tau.hat =  13 ;   95 % CI = (  6 ,  84 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2017 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brem                    7      15       0      14        1
-## Clowhom               132  10,577   6,425   3,685      467
-## Haslam                249  36,610  27,403   7,558    1,649
-## Indian                 58     708     208     410       91
-## McNab                 135   9,712   6,199   3,029      484
-## Orford                153  10,044   5,390   4,033      621
-## Pitt                  107   6,657   5,070   1,280      307
-## Powell-Daniels        215  29,865  23,703   4,925    1,237
-## Quatam                 51     879       0     811       68
-## Rainy-Gray            229  29,001  17,726   9,879    1,396
-## Sechelt Peninsula     253  30,459  25,672   3,086    1,701
-## Southgate             735 516,396 275,001 226,979   14,416
-## Stave                  60     529       0     434       95
-## Theo                   89   3,964   2,125   1,628      211
-## Tzoonie-Narrows        13     113      71      38        4</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brem                    7      15       0      14        1       5      36
+## Clowhom               132  10,577   6,425   3,685      467      63     829
+## Haslam                249  36,610  27,403   7,558    1,649     115   1,495
+## Indian                 58     708     208     410       91      38     215
+## McNab                 135   9,712   6,199   3,029      484      67     793
+## Orford                153  10,044   5,390   4,033      621      84     827
+## Pitt                  107   6,657   5,070   1,280      307      50     636
+## Powell-Daniels        215  29,865  23,703   4,925    1,237      94   1,332
+## Quatam                 51     879       0     811       68      33     293
+## Rainy-Gray            229  29,001  17,726   9,879    1,396     113   1,378
+## Sechelt Peninsula     253  30,459  25,672   3,086    1,701     127   1,346
+## Southgate             735 516,396 275,001 226,979   14,416     224   5,312
+## Stave                  60     529       0     434       95      41     185
+## Theo                   89   3,964   2,125   1,628      211      47     521
+## Tzoonie-Narrows        13     113      71      38        4       6      84</code></pre>
+<pre class="r"><code>results.strat.2017 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 <div id="section-2" class="section level2">
 <h2>2018</h2>
@@ -454,33 +610,68 @@ results.all.2018 &lt;-print(est.2018)</code></pre>
 ##  VarSamp VarSight   VarMod 
 ##  234,390  113,879  144,952</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2018$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2018$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2018$Unit)
 for(i in 1:length(eff.2018$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2018 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2018 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   2 ;   95 % CI = (  1 ,  13 )
+## 
+## [1] tau.hat =  151 ;   95 % CI = (  88 ,  683 )
+## 
+## [1] tau.hat =    235 ;   95 % CI = (    91 ,  1,662 )
+## 
+## [1] tau.hat =   51 ;   95 % CI = (  35 ,  166 )
+## 
+## [1] tau.hat =   60 ;   95 % CI = (  39 ,  374 )
+## 
+## [1] tau.hat =   64 ;   95 % CI = (  41 ,  292 )
+## 
+## [1] tau.hat =    458 ;   95 % CI = (   176 ,  3,141 )
+## 
+## [1] tau.hat =  233 ;   95 % CI = ( 173 ,  441 )
+## 
+## [1] tau.hat =    269 ;   95 % CI = (   113 ,  1,777 )
+## 
+## [1] tau.hat =   56 ;   95 % CI = (  38 ,  202 )
+## 
+## [1] tau.hat =    354 ;   95 % CI = (   169 ,  2,033 )
+## 
+## [1] tau.hat =  111 ;   95 % CI = (  57 ,  623 )
+## 
+## [1] tau.hat =  113 ;   95 % CI = (  73 ,  450 )
+## 
+## [1] tau.hat =   81 ;   95 % CI = (  45 ,  583 )
+## 
+## [1] tau.hat =   94 ;   95 % CI = (  39 ,  626 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2018 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brittain                2       2       0       1        0
-## Chehalis              151   7,513   5,005   1,899      608
-## Deserted-Stakawus     235  44,777  23,362  19,944    1,471
-## Homathko               51     414       0     345       68
-## Indian                 60   1,340       0   1,246       95
-## Lower Lillooet         64   1,178     322     746      110
-## Rainy-Gray            458 166,319 108,607  52,108    5,604
-## Sechelt Peninsula     233   3,045       0   1,596    1,448
-## Skwawka               269  51,516  33,957  15,624    1,934
-## Southgate              56     584       0     500       84
-## Squamish              354  68,216  53,336  11,545    3,335
-## Stave                 111   6,008   3,871   1,809      328
-## Toba                  113   2,977     771   1,865      341
-## Tzoonie-Narrows        81   3,764     859   2,732      174
-## Vancouver              94   6,454   4,299   1,917      238</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brittain                2       2       0       1        0       1      13
+## Chehalis              151   7,513   5,005   1,899      608      88     683
+## Deserted-Stakawus     235  44,777  23,362  19,944    1,471      91   1,662
+## Homathko               51     414       0     345       68      35     166
+## Indian                 60   1,340       0   1,246       95      39     374
+## Lower Lillooet         64   1,178     322     746      110      41     292
+## Rainy-Gray            458 166,319 108,607  52,108    5,604     176   3,141
+## Sechelt Peninsula     233   3,045       0   1,596    1,448     173     441
+## Skwawka               269  51,516  33,957  15,624    1,934     113   1,777
+## Southgate              56     584       0     500       84      38     202
+## Squamish              354  68,216  53,336  11,545    3,335     169   2,033
+## Stave                 111   6,008   3,871   1,809      328      57     623
+## Toba                  113   2,977     771   1,865      341      73     450
+## Tzoonie-Narrows        81   3,764     859   2,732      174      45     583
+## Vancouver              94   6,454   4,299   1,917      238      39     626</code></pre>
+<pre class="r"><code>results.strat.2018 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 <div id="section-3" class="section level2">
 <h2>2019</h2>
@@ -544,30 +735,59 @@ results.all.2019 &lt;-print(est.2019)</code></pre>
 ##  VarSamp VarSight   VarMod 
 ##  174,023   45,751  110,123</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2019$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2019$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2019$Unit)
 for(i in 1:length(eff.2019$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2019 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2019 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   51 ;   95 % CI = (  31 ,  290 )
+## 
+## [1] tau.hat =  145 ;   95 % CI = (  92 ,  534 )
+## 
+## [1] tau.hat =  127 ;   95 % CI = (  68 ,  751 )
+## 
+## [1] tau.hat =   64 ;   95 % CI = (  38 ,  365 )
+## 
+## [1] tau.hat =  122 ;   95 % CI = (  56 ,  841 )
+## 
+## [1] tau.hat =    505 ;   95 % CI = (   267 ,  2,517 )
+## 
+## [1] tau.hat =   96 ;   95 % CI = (  63 ,  548 )
+## 
+## [1] tau.hat =   41 ;   95 % CI = (  27 ,  193 )
+## 
+## [1] tau.hat =    261 ;   95 % CI = (   139 ,  1,455 )
+## 
+## [1] tau.hat =    411 ;   95 % CI = (   227 ,  1,894 )
+## 
+## [1] tau.hat =  105 ;   95 % CI = (  73 ,  301 )
+## 
+## [1] tau.hat =  105 ;   95 % CI = (  53 ,  598 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2019 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brittain               51   1,046     287     689       70
-## Chehalis              145   4,672   2,467   1,641      564
-## Haslam                127   7,904   3,738   3,739      427
-## Lower Lillooet         64   1,716     559   1,046      111
-## McNab                 122  10,168   4,573   5,200      395
-## Pitt                  505 106,513  88,796  10,915    6,802
-## Powell-Daniels         96   3,107       0   2,862      244
-## Quatam                 41     458      27     387       44
-## Rainy-Gray            261  31,717  18,402  11,498    1,817
-## Sechelt Peninsula     411  60,980  51,422   5,057    4,501
-## Theo                  105   1,444       0   1,151      293
-## Tzoonie-Narrows       105   5,609   3,751   1,566      292</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brittain               51   1,046     287     689       70      31     290
+## Chehalis              145   4,672   2,467   1,641      564      92     534
+## Haslam                127   7,904   3,738   3,739      427      68     751
+## Lower Lillooet         64   1,716     559   1,046      111      38     365
+## McNab                 122  10,168   4,573   5,200      395      56     841
+## Pitt                  505 106,513  88,796  10,915    6,802     267   2,517
+## Powell-Daniels         96   3,107       0   2,862      244      63     548
+## Quatam                 41     458      27     387       44      27     193
+## Rainy-Gray            261  31,717  18,402  11,498    1,817     139   1,455
+## Sechelt Peninsula     411  60,980  51,422   5,057    4,501     227   1,894
+## Theo                  105   1,444       0   1,151      293      73     301
+## Tzoonie-Narrows       105   5,609   3,751   1,566      292      53     598</code></pre>
+<pre class="r"><code>results.strat.2019 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 <div id="section-4" class="section level2">
 <h2>2020</h2>
@@ -631,31 +851,62 @@ results.all.2020 &lt;-print(est.2020)</code></pre>
 ##  VarSamp VarSight   VarMod 
 ##  113,360   44,971  125,382</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2020$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2020$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2020$Unit)
 for(i in 1:length(eff.2020$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2020 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2020 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   76 ;   95 % CI = (  51 ,  326 )
+## 
+## [1] tau.hat =  103 ;   95 % CI = (  56 ,  558 )
+## 
+## [1] tau.hat =    215 ;   95 % CI = (   123 ,  1,031 )
+## 
+## [1] tau.hat =   76 ;   95 % CI = (  49 ,  553 )
+## 
+## [1] tau.hat =  152 ;   95 % CI = ( 107 ,  402 )
+## 
+## [1] tau.hat =  235 ;   95 % CI = ( 164 ,  650 )
+## 
+## [1] tau.hat =    393 ;   95 % CI = (   227 ,  1,669 )
+## 
+## [1] tau.hat =  148 ;   95 % CI = (  76 ,  806 )
+## 
+## [1] tau.hat =  102 ;   95 % CI = (  55 ,  570 )
+## 
+## [1] tau.hat =    264 ;   95 % CI = (   112 ,  1,670 )
+## 
+## [1] tau.hat =  140 ;   95 % CI = (  79 ,  710 )
+## 
+## [1] tau.hat =  107 ;   95 % CI = (  73 ,  363 )
+## 
+## [1] tau.hat =    159 ;   95 % CI = (    71 ,  1,021 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2020 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot VarSamp VarSight VarMod
-## Clowhom               76   1,362      0   1,209      154
-## Deserted-Stakawus    103   4,700  2,766   1,649      284
-## Homathko             215  16,643 10,411   5,000    1,232
-## Indian                76   2,571      0   2,417      154
-## Orford               152   2,631      0   2,017      614
-## Rainy-Gray           235   6,798      0   5,328    1,471
-## Sechelt Peninsula    393  47,514 38,485   4,910    4,119
-## Skwawka              148  10,479  7,684   2,211      584
-## Southgate            102   4,791  2,655   1,861      275
-## Squamish             264  47,056 36,619   8,576    1,861
-## Stave                140   7,570  4,221   2,830      519
-## Toba                 107   1,949      0   1,646      303
-## Vancouver            159  16,511 10,518   5,319      674</code></pre>
+<pre><code>##                   tau.hat VarTot VarSamp VarSight VarMod LCL    UCL   
+## Clowhom               76   1,362      0   1,209      154     51    326
+## Deserted-Stakawus    103   4,700  2,766   1,649      284     56    558
+## Homathko             215  16,643 10,411   5,000    1,232    123  1,031
+## Indian                76   2,571      0   2,417      154     49    553
+## Orford               152   2,631      0   2,017      614    107    402
+## Rainy-Gray           235   6,798      0   5,328    1,471    164    650
+## Sechelt Peninsula    393  47,514 38,485   4,910    4,119    227  1,669
+## Skwawka              148  10,479  7,684   2,211      584     76    806
+## Southgate            102   4,791  2,655   1,861      275     55    570
+## Squamish             264  47,056 36,619   8,576    1,861    112  1,670
+## Stave                140   7,570  4,221   2,830      519     79    710
+## Toba                 107   1,949      0   1,646      303     73    363
+## Vancouver            159  16,511 10,518   5,319      674     71  1,021</code></pre>
+<pre class="r"><code>results.strat.2020 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 <div id="section-5" class="section level2">
 <h2>2021</h2>
@@ -663,7 +914,7 @@ results.strat.2020 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justi
 # All data
 est.2021 &lt;- Sight.Est(observed ~ 1, odat = subset(obs,year == 2021), sdat = exp1,
   sampinfo = subset(sampinfo, year == 2021))  
-results.all.2021 &lt;-print(est.2021)</code></pre>
+results.all.2021 &lt;- print(est.2021)</code></pre>
 <pre><code>## Call:
 ## Sight.Est(form = observed ~ 1, sdat = exp1, odat = subset(obs, 
 ##     year == 2021), sampinfo = subset(sampinfo, year == 2021))
@@ -719,33 +970,69 @@ results.all.2021 &lt;-print(est.2021)</code></pre>
 ## 
 ##  VarSamp VarSight   VarMod 
 ##  245,600   51,989  214,941</code></pre>
+<pre class="r"><code>summary(est.2021)</code></pre>
+<pre><code>## 
+## [1] tau.hat =  2,839 ;   95 % CI = ( 1,997 ,  5,283 )</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2021$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2021$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2021$Unit)
 for(i in 1:length(eff.2021$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2021 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs[obs$year == 2021 &amp; obs$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =  10 ;   95 % CI = (  4 ,  71 )
+## 
+## [1] tau.hat =  168 ;   95 % CI = ( 117 ,  466 )
+## 
+## [1] tau.hat =  197 ;   95 % CI = ( 141 ,  466 )
+## 
+## [1] tau.hat =   61 ;   95 % CI = (  41 ,  254 )
+## 
+## [1] tau.hat =   87 ;   95 % CI = (  59 ,  318 )
+## 
+## [1] tau.hat =  401 ;   95 % CI = ( 295 ,  810 )
+## 
+## [1] tau.hat =  113 ;   95 % CI = (  66 ,  492 )
+## 
+## [1] tau.hat =   62 ;   95 % CI = (  34 ,  344 )
+## 
+## [1] tau.hat =    603 ;   95 % CI = (   269 ,  3,578 )
+## 
+## [1] tau.hat =    510 ;   95 % CI = (   339 ,  1,462 )
+## 
+## [1] tau.hat =    230 ;   95 % CI = (   114 ,  1,267 )
+## 
+## [1] tau.hat =  206 ;   95 % CI = ( 146 ,  513 )
+## 
+## [1] tau.hat =   84 ;   95 % CI = (  53 ,  342 )
+## 
+## [1] tau.hat =  107 ;   95 % CI = (  50 ,  772 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2021 &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brittain               10      76      33      40        3
-## Chehalis              168   3,492       0   2,739      753
-## Haslam                197   3,592       0   2,558    1,034
-## Lower Lillooet         61     849       0     748      101
-## McNab                  87   1,434       0   1,233      201
-## Pitt                  401  10,570       0   6,281    4,289
-## Powell-Daniels        113   3,948   2,681     927      341
-## Quatam                 62   1,667     773     792      101
-## Rainy-Gray            603 219,325 189,925  19,708    9,692
-## Sechelt Peninsula     510  38,152  26,789   4,422    6,940
-## Skwawka               230  26,707  21,646   3,646    1,415
-## Squamish              206   4,337       0   3,206    1,131
-## Theo                   84   1,784     723     872      189
-## Tzoonie-Narrows       107   8,150   3,029   4,815      306</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brittain               10      76      33      40        3       4      71
+## Chehalis              168   3,492       0   2,739      753     117     466
+## Haslam                197   3,592       0   2,558    1,034     141     466
+## Lower Lillooet         61     849       0     748      101      41     254
+## McNab                  87   1,434       0   1,233      201      59     318
+## Pitt                  401  10,570       0   6,281    4,289     295     810
+## Powell-Daniels        113   3,948   2,681     927      341      66     492
+## Quatam                 62   1,667     773     792      101      34     344
+## Rainy-Gray            603 219,325 189,925  19,708    9,692     269   3,578
+## Sechelt Peninsula     510  38,152  26,789   4,422    6,940     339   1,462
+## Skwawka               230  26,707  21,646   3,646    1,415     114   1,267
+## Squamish              206   4,337       0   3,206    1,131     146     513
+## Theo                   84   1,784     723     872      189      53     342
+## Tzoonie-Narrows       107   8,150   3,029   4,815      306      50     772</code></pre>
+<pre class="r"><code>results.strat.2021 &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 <div id="with-voc-variable" class="section level3">
 <h3>With VOC variable:</h3>
 <pre class="r"><code># 2021 w/ voc (remove any NAs in voc)
@@ -811,34 +1098,77 @@ results.all.2021.voc &lt;-print(est.2021.voc)</code></pre>
 ##   VarSamp  VarSight    VarMod 
 ##   282,746   149,784 1,420,669</code></pre>
 <pre class="r"><code># By strata
-tau.hats &lt;- matrix(NA, length(eff.2021$ID), 5)
+tau.hats &lt;- matrix(NA, length(eff.2021$ID), 7)
 rownames(tau.hats) &lt;- c(eff.2021$Unit)
 for(i in 1:length(eff.2021$ID)){
   tempsamp &lt;- sampinfo[sampinfo$year==2021 &amp; sampinfo$stratum==i, ]
   tempobs &lt;- obs.voc[obs.voc$year == 2021 &amp; obs.voc$stratum == i, ]
   temp &lt;- Sight.Est(observed ~ voc, odat = tempobs, sdat = exp1, tempsamp)
-  tau.hats[i, ] &lt;- temp$est
-}
-colnames(tau.hats) &lt;- names(temp$est)
+  temp.summary &lt;- summary(temp)
+  tau.hats[i,1:5] &lt;- temp$est
+  tau.hats[i,6] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$lcl))
+  tau.hats[i,7] &lt;- as.numeric(gsub(&quot;,&quot;,&quot;&quot;,temp.summary$ucl))
+}</code></pre>
+<pre><code>## 
+## [1] tau.hat =   43 ;   95 % CI = (  13 ,  311 )
+## 
+## [1] tau.hat =    333 ;   95 % CI = (   162 ,  1,661 )
+## 
+## [1] tau.hat =  195 ;   95 % CI = ( 138 ,  495 )
+## 
+## [1] tau.hat =   56 ;   95 % CI = (  39 ,  272 )
+## 
+## [1] tau.hat =  101 ;   95 % CI = (  64 ,  380 )
+## 
+## [1] tau.hat =    681 ;   95 % CI = (   386 ,  2,123 )
+## 
+## [1] tau.hat =  116 ;   95 % CI = (  67 ,  539 )
+## 
+## [1] tau.hat =   59 ;   95 % CI = (  34 ,  313 )
+## 
+## [1] tau.hat =    715 ;   95 % CI = (   301 ,  4,291 )
+## 
+## [1] tau.hat =    399 ;   95 % CI = (   281 ,  1,266 )
+## 
+## [1] tau.hat =  160 ;   95 % CI = (  92 ,  980 )
+## 
+## [1] tau.hat =  243 ;   95 % CI = ( 158 ,  716 )
+## 
+## [1] tau.hat =  165 ;   95 % CI = (  75 ,  933 )
+## 
+## [1] tau.hat =    308 ;   95 % CI = (   105 ,  2,226 )</code></pre>
+<pre class="r"><code>colnames(tau.hats) &lt;- c(names(temp$est), &quot;LCL&quot;, &quot;UCL&quot;)
 tau.hats&lt;-round(tau.hats, 0)
 results.strat.2021.voc &lt;- print(format(tau.hats, big.mark = &quot;,&quot;), justify = &quot;left&quot;, quote = FALSE)</code></pre>
-<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod 
-## Brittain               43   1,767     147     646      974
-## Chehalis              333  50,966       0  16,285   34,681
-## Haslam                195   3,963       0   2,352    1,610
-## Lower Lillooet         56     775       0     670      105
-## McNab                 101   2,357       0   1,720      637
-## Pitt                  681 100,849       0  26,349   74,499
-## Powell-Daniels        116   4,593   2,663   1,275      656
-## Quatam                 59   1,388     758     503      127
-## Rainy-Gray            715 327,508 241,156  40,241   46,111
-## Sechelt Peninsula     399  23,200  16,411   2,604    4,185
-## Skwawka               160  11,888  11,274     503      110
-## Squamish              243   9,484       0   5,127    4,357
-## Theo                  165  15,231   1,613   6,737    6,881
-## Tzoonie-Narrows       308  85,587   8,724  44,771   32,092</code></pre>
+<pre><code>##                   tau.hat VarTot  VarSamp VarSight VarMod  LCL     UCL    
+## Brittain               43   1,767     147     646      974      13     311
+## Chehalis              333  50,966       0  16,285   34,681     162   1,661
+## Haslam                195   3,963       0   2,352    1,610     138     495
+## Lower Lillooet         56     775       0     670      105      39     272
+## McNab                 101   2,357       0   1,720      637      64     380
+## Pitt                  681 100,849       0  26,349   74,499     386   2,123
+## Powell-Daniels        116   4,593   2,663   1,275      656      67     539
+## Quatam                 59   1,388     758     503      127      34     313
+## Rainy-Gray            715 327,508 241,156  40,241   46,111     301   4,291
+## Sechelt Peninsula     399  23,200  16,411   2,604    4,185     281   1,266
+## Skwawka               160  11,888  11,274     503      110      92     980
+## Squamish              243   9,484       0   5,127    4,357     158     716
+## Theo                  165  15,231   1,613   6,737    6,881      75     933
+## Tzoonie-Narrows       308  85,587   8,724  44,771   32,092     105   2,226</code></pre>
+<pre class="r"><code>results.strat.2021.voc &lt;- as.data.frame(tau.hats) %&gt;%
+  select(tau.hat, LCL:UCL, everything())</code></pre>
 </div>
 </div>
+<div id="summary-plots" class="section level2">
+<h2>Summary plots</h2>
+<div id="sechelt-peninsula" class="section level3">
+<h3>Sechelt Peninsula</h3>
+<p><img src="data:image/png;base64,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" width="672" /></p>
+</div>
+</div>
+</div>
+<div id="bayesian-analysis" class="section level1">
+<h1>Bayesian Analysis</h1>
 </div>
 
 
