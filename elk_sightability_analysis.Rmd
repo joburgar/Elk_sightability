@@ -59,13 +59,13 @@ dat.2021 <- read_excel("data/SurveyData_ SPRING_2022.xls",
         "skip", "numeric", "numeric", "numeric", 
         "text", "text", "numeric", "text", 
         "text"))
-# dat.2022 <- read_excel("data/SurveyData_ SPRING_2022.xls", 
-#    sheet = "2022 Survey Data", range = "A1:P102", 
-#    col_types = c("numeric", "text", "text", 
-#        "numeric", "numeric", "numeric", 
-#        "skip", "numeric", "numeric", "numeric", 
-#        "skip", "text", "text", "numeric", 
-#        "text", "text"))
+dat.2022 <- read_excel("data/SurveyData_ SPRING_2022.xls", 
+    sheet = "2022 Survey Data", range = "A1:P102", 
+    col_types = c("numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "skip", "numeric", "numeric", "numeric", 
+        "skip", "text", "text", "numeric", 
+        "text", "text"))
 EPU.areas <- read_csv("data/Effort/EPU_areas.csv", 
     col_types = cols(OID = col_skip(), Shape_Leng = col_skip()))
 
@@ -127,7 +127,7 @@ eff.2021 <- area.2021 %>%
 ## 1. 1 for spotting collared elk, 0 for searching for collar
 ## 2. 1 for spotting any elk (collared or not), 0 for searching for collar
 
-exp.tmp <- dat.2021 %>%
+exp.tmp <- bind_rows(dat.2021, dat.2022) %>%
   mutate(
     subunit = EPU,
     total = `Elk Obs.`,
@@ -138,28 +138,41 @@ exp.tmp <- dat.2021 %>%
   mutate(
     survey.type = case_when(
       grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-      grepl("transect", survey.type, ignore.case = TRUE) ~ "Transect",
-      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry"
+      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
+      grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
+      grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
+      TRUE ~ "Other"
       )
     ) %>%
-  filter(survey.type != "Incidental")
-#make sure transect and telemetry are the only values
-unique(exp.tmp$survey.type)
+  filter(survey.type == "Telemetry" | survey.type == "Inventory")
+
 
 # Option 1
-exp1 <- exp.tmp %>%
+exp.tmp <- exp.tmp %>%
   mutate(collar =
     case_when(
       grepl("no collar", `Notes:`, ignore.case = TRUE) ~ "No Collar",
+      grepl("dart", `Notes:`, ignore.case = TRUE) ~ "No Collar",
       str_detect(`Notes:`, "15\\d.\\d\\d\\d") ~ as.character(
         str_extract_all(`Notes:`, "15\\d.\\d\\d\\d"), sep=", "),
+      str_detect(`Notes:`, "\\d\\d\\d\\d\\d") ~ as.character(
+        str_extract_all(`Notes:`, "\\d\\d\\d\\d\\d"), sep=", "),
+      str_detect(`Notes:`, "2 yellow collar") ~ "Yellow, Yellow",      
+      grepl("yellow collar", `Notes:`, ignore.case = TRUE) ~ "Yellow",
+      grepl("Telemetry", `survey.type`) ~ "0",
       TRUE ~ "No Collar"
     )
   ) %>%
   filter(collar != "No Collar") %>%
+  arrange(collar)
+
+# duplicate observations with 2 collars, then clean
+exp.tmp <- rbind(exp.tmp, exp.tmp[rep(c(44:48, 56:57), 1),])
+
+exp1 <- exp.tmp %>%
   transmute(
     year = as.integer(Year),
-    observed = as.integer(if_else(survey.type=="Transect", 1, 0)),
+    observed = as.integer(if_else(survey.type=="Inventory", 1, 0)),
     voc = as.integer(voc*100),
     grpsize = as.integer(total),
     habitat = Habitat,
@@ -176,7 +189,6 @@ exp2 <- exp.tmp %>%
     habitat = Habitat,
     activity = Activity
   )
-
 ```
 
 ```{r obs, include=FALSE}
@@ -834,3 +846,96 @@ Sechelt_plot
 ```
 
 # Bayesian Analysis
+
+```{r sightabiliy data}
+sight.dat <- exp.tmp %>%
+  mutate(x.tilde = voc,
+         z.tilde = if_else(survey.type=="Telemetry", 0, 1), .keep="none")
+glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
+```
+
+```{r operational data}
+#  oper_dat.csv:  Operational survey data:  4380 records
+# (includes observed and augmented data for the annual surveys in  2006 and 2007 combined).
+# Augmented data records have NA (missing) for x, y, q.
+# x = visual obstruction measurements
+# ym1 = y-1, where y = observed group size
+# h = stratum identifier (1, 2, 3 correspond to low, medium and high density strata)
+# q = indicator variable that represents whether the group belongs to the study population (equal to 1 for all observed groups and NA for all augmented groups).
+# z = detection indicator (equal to 1 if the group was observed during the operational survey and 0 otherwise)
+# subunits = unique plot identifier (for all sampled plots).
+# yr = year of observation (1 = 2006, 2= 2007)
+
+# non-augmented data
+# need average voc of each subunit
+dat.voc <- bind_rows(dat.2021, dat.2022) %>%
+  mutate(
+    subunit = EPU,
+    total = `Elk Obs.`,
+    survey.type = `Survey type`,
+    voc = `% cover`,
+    .keep = "unused"
+    )
+
+setdiff(dat.voc$subunit, EPU.list) # 12 names don't match EPU list names, fix below
+
+dat.voc <- dat.voc %>%
+  mutate(subunit = case_when(
+    grepl("Rainy", subunit, ignore.case = TRUE) ~ "Rainy-Gray",
+    grepl("Narrows", subunit, ignore.case = TRUE) ~ "Tzoonie-Narrows",
+    grepl("Deserted", subunit, ignore.case = TRUE) ~ "Deserted-Stakawus",
+    grepl("Sechelt", subunit, ignore.case = TRUE) ~ "Sechelt Peninsula",
+    grepl("Homathco", subunit, ignore.case = TRUE) ~ "Homathko",
+    grepl("Haslam", subunit, ignore.case = TRUE) ~ "Haslam",
+    grepl("Dani", subunit, ignore.case = TRUE) ~ "Powell-Daniels",
+    grepl("Quatum", subunit, ignore.case = TRUE) ~ "Quatam",
+    grepl("Vancouver", subunit, ignore.case = TRUE) ~ "Vancouver",
+    grepl("Mcnab", subunit, ignore.case = TRUE) ~ "McNab",
+    grepl("southgate", subunit, ignore.case = TRUE) ~ "Southgate",
+    TRUE ~ subunit
+  )) %>%
+  # now clean to remove telemetry obs
+  mutate(
+    survey.type = case_when(
+      grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
+      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
+      grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
+      grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
+      TRUE ~ "Other"
+      )
+    ) %>%
+  filter(survey.type != "Telemetry") %>%
+  # get average voc
+  select(subunit, voc) %>%
+  group_by(subunit) %>%
+  summarize(avg_voc = round(mean(voc, na.rm=T), digits = 2))
+
+ oper.dat <-  left_join(obs, dat.voc, by="subunit") %>%
+   mutate(voc = if_else(is.na(voc), avg_voc, as.double(voc*.01)),
+          q = 1,
+          z = 1,
+          ym1 = grpsize - 1,
+          yr = as.double(year),
+          h = as.double(stratum)) %>%
+   select(x = voc, ym1, h, q, z, yr, subunits = subunit)
+
+ # augmented data
+ # need to determine max m of each h
+m.est <- obs %>%
+  group_by(subunit, year, stratum) %>%
+  summarize(m = n())
+m.max <- m.est %>%
+  group_by(subunit) %>%
+  summarize(m.max = max(m))
+b.h <- m.max %>%
+  mutate(b.h = 10*m.max)
+  oper.dat.aug <-  full_join(m.est, b.h, by="subunit") %>%
+    mutate(B_minus_m = b.h-m)
+  oper.dat.aug <- oper.dat.aug[rep(1:nrow(oper.dat.aug), oper.dat.aug$B_minus_m),] %>%
+    mutate(x = NA, ym1 = NA, h = stratum, q = NA, z = 0, yr = year, subunits = subunit, .keep="none")
+
+  oper.dat <- rbind(oper.dat, oper.dat.aug[,3:9])
+
+oper.dat # check - looks the same as Fieberg's oper_dat csv
+```
+
