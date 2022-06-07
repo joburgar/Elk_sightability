@@ -11,6 +11,12 @@ library("SightabilityModel")
 library(tidyverse)
 library(readxl)
 library(rjags)
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda",
+                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable")
+# Check you have them and load them
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(list.of.packages, require, character.only = TRUE)
 ```
 
 ```{r moose example, eval=FALSE, include=FALSE}
@@ -848,6 +854,10 @@ Sechelt_plot
 # Bayesian Analysis
 
 ```{r sightabiliy data}
+# 1.  sight_dat.csv = Sightability survey data:  124 records
+# x = visual obstrcution measurements associated with the test trial data used to develop the     sightability model
+# z = detection indicator (1 if the group was observed, 0 otherwise)
+
 sight.dat <- exp.tmp %>%
   mutate(x.tilde = voc,
          z.tilde = if_else(survey.type=="Telemetry", 0, 1), .keep="none")
@@ -855,7 +865,7 @@ glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
 ```
 
 ```{r operational data}
-#  oper_dat.csv:  Operational survey data:  4380 records
+#  2. oper_dat.csv:  Operational survey data:  4380 records
 # (includes observed and augmented data for the annual surveys in  2006 and 2007 combined).
 # Augmented data records have NA (missing) for x, y, q.
 # x = visual obstruction measurements
@@ -938,4 +948,64 @@ b.h <- m.max %>%
 
 oper.dat # check - looks the same as Fieberg's oper_dat csv
 ```
+```{r plot data}
+# 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
+# h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
+# yr.plots = year the plot was sampled (1 = 2006, 2= 2007)
+plot.dat <- eff %>%
+  select(h.plots = ID, yr.plots = year)
+```
+
+```{r scalar data}
+# 4.  scalar_dat.csv:  Scalars:
+#   R = number of sightability trials (64)
+# 
+#   Ngroups = number of observed and augmented groups for the 2006 and 2007 annual operational surveys (7290)
+# 
+#   Nsubunits.yr = total number of plots sampled in 2006 and 2007 combined = 81 
+# 
+#   ny1 = number of groups associated with the annual survey in 2006 (year 1) = 960
+
+scalar.dat <- as.data.frame(matrix(NA, 1, 4))
+colnames(scalar.dat) <- c("R", "Ngroups", "Nsubunits.yr", "ny1")
+scalar.dat <- scalar.dat %>%
+  mutate(R = nrow(sight.dat),
+         Ngroups = nrow(oper.dat),
+         Nsubunits.yr = nrow(plot.dat),
+         ny1 = nrow(oper.dat[oper.dat$yr==2016,])
+  )
+```
+
+```{r run model}
+# specify initial values
+inits <-  function() list(bo=runif(1), bvoc=runif(1))
+
+# Parameters monitored
+params <- c("tau.samp1", "tau.samp2", "tau.samp3", "tau.samp4", "tau.samp5", "tau.samp6", "bo", "bvoc")
+
+# MCMC settings
+ni <- 40000 # build to 40000
+nt <- 2     # 50% thinning rate (discard every 2nd iteration)
+nb <- 20000 # build to 20000
+nc <- 3
+
+# Bundle data
+bundle.data <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
+                    x=oper.dat$x, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper_dat
+                    h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
+                    R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, ny1=scalar.dat$ny1) # scalar_dat
+
+# Run model
+jags_output <- jags(bundle.data, inits, params, "beta_binom_model_elksim.txt",
+                       n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+                       parallel=TRUE, n.cores=1)
+jags_output
+
+save("jags_output",file="jags_output.RData") #
+
+summary(jags_output) # only the first 18 models ran
+```
+
+
+
 
