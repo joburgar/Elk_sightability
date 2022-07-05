@@ -914,7 +914,7 @@ sight.dat %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde),
 
  # exclude telemetry?
 oper.dat <- obs %>%
-  filter(survey_type != "Telemetry" ) %>%
+  filter(survey_type == "Inventory") %>%
   transmute(a = as.double(activity),
             s = as.double(habitat),
             x = as.double(voc),
