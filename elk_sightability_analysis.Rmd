@@ -11,8 +11,7 @@ library("SightabilityModel")
 library(tidyverse)
 library(readxl)
 library(rjags)
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda",
-                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable", "statip", "R2jags")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -849,115 +848,394 @@ Sechelt_plot = ggplot(tau.Sechelt, aes(x = row.names(tau.Sechelt), y=Estimate))+
   theme(axis.text.y = element_text(size=14))
 Sechelt_plot
 
+
+rm(list=ls()) 
 ```
 
-# Bayesian Analysis
+# Bayesian Analsysis (2021-2022)
 
-```{r sightabiliy data}
-# 1.  sight_dat.csv = Sightability survey data:  124 records
-# x = visual obstrcution measurements associated with the test trial data used to develop the     sightability model
+``` {r load2}
+## LOAD DATA ####
+
+dat.2021 <- read_excel("data/SurveyData_ SPRING_2022.xls", 
+                       sheet = "2021 Survey Data", range = "A1:O136", 
+                       col_types = c("numeric", "text", "text", 
+                                     "numeric", "numeric", "numeric", 
+                                     "skip", "numeric", "numeric", "numeric", 
+                                     "text", "text", "numeric", "text", 
+                                     "text"))
+dat.2022 <- read_excel("data/SurveyData_ SPRING_2022.xls", 
+                       sheet = "2022 Survey Data", range = "A1:P102", 
+                       col_types = c("numeric", "text", "text", 
+                                     "numeric", "numeric", "numeric", 
+                                     "skip", "numeric", "numeric", "numeric", 
+                                     "skip", "text", "text", "numeric", 
+                                     "text", "text"))
+EPU.areas <- read_csv("data/Effort/EPU_areas.csv",
+                      col_types = cols(OID = col_skip(), Shape_Leng = col_skip()))
+
+```
+
+``` {r eff2}
+# Create list of EPUs
+EPU.list <- as.character(EPU.areas$Unit)
+print(EPU.list)
+
+## CLEAN EFFORT DATA ####
+# take effort data from summary pages
+
+min.count <- read_excel("data/SurveyData_ SPRING_2022.xls", 
+                  sheet = "2022 Summary", range = "A2:O29") %>%
+  select(EPU = `...1`, Min_2021 = `Min 2021`, Min_2022 = `Min 2022`)
+
+# get rid of letters in count columns and classify as integer fields
+
+min.count$Min_2021 <- min.count$Min_2021 %>%
+  str_remove_all("[:alpha:]") %>% 
+  str_remove_all("[:punct:]") %>%
+  str_remove_all("[:symbol:]") %>%
+  as.integer(min.count$Min_2021)
+
+min.count$Min_2022 <- min.count$Min_2022 %>%
+  str_remove_all("[:alpha:]") %>% 
+  str_remove_all("[:punct:]") %>%
+  str_remove_all("[:symbol:]") %>%
+  as.integer(min.count$Min_2022)
+
+# make names match
+setdiff(min.count$EPU, EPU.list)
+min.count <- min.count %>%
+  mutate(EPU = case_when(
+    grepl("Chehalis", EPU, ignore.case = TRUE) ~ "Chehalis",
+    grepl("Sechelt", EPU, ignore.case = TRUE) ~ "Sechelt Peninsula",
+    grepl("Haslam", EPU, ignore.case = TRUE) ~ "Haslam",
+    grepl("Dani", EPU, ignore.case = TRUE) ~ "Powell-Daniels",
+    grepl("Theo", EPU, ignore.case = TRUE) ~ "Theo",
+    TRUE ~ EPU))
+setdiff(min.count$EPU, EPU.list) # good now
+
+eff <- min.count %>%
+  mutate(surveyed_2021 = if_else(is.na(Min_2021)|Min_2021==0, F, T),
+         surveyed_2022 = if_else(is.na(Min_2022)|Min_2022==0, F, T)) %>%
+  filter(surveyed_2021 == T | surveyed_2022 == T) %>%
+  select(EPU, surveyed_2021, surveyed_2022)
+summary(eff)
+# make sure numbers are as expected
+# add ID# to each EPU
+eff$ID <- as.double(row.names(eff))
+eff %>% select(EPU, ID, surveyed_2021, surveyed_2022) %>% print(eff)
+```
+
+``` {r obs2}
+## CLEAN OBSERVATION DATA ####
+
+# 2022
+dat.2022 <- dat.2022 %>%
+  mutate(
+    Cow = if_else(is.na(Cow), 0, Cow),
+    Calf = if_else(is.na(Calf), 0, Calf),
+    Spike = if_else(is.na(Spike), 0, Spike),
+    Bull = if_else(is.na(Bull), 0, Bull),
+    Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
+  )
+obs.2022 <- dat.2022 %>%
+  transmute(
+    year = 2022,
+    date = as.Date(strptime(dat.2022$Date, "%b %d %Y")),
+    stratum = EPU,
+    subunit = 1,
+    total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
+    cows = Cow,
+    calves = Calf,
+    spikes = Spike,
+    bulls = Bull,
+    unclass = `Unclass.`,
+    grpsize = `Elk Obs.`,
+    voc = `% cover`,
+    habitat = Habitat,
+    activity = Activity,
+    survey_type = `Survey type`,
+    notes = `Notes:`
+  )
+obs.2022 <- obs.2022 %>%
+  mutate(counted = case_when(
+    grepl("re-flown", notes, ignore.case = TRUE) |
+      grepl("not in total", notes, ignore.case = TRUE) |
+      grepl("not counted", notes, ignore.case = TRUE) |
+      grepl("no effort", notes, ignore.case = TRUE) |
+      grepl("incidental", notes, ignore.case = TRUE) |
+      grepl("telemetry", survey_type, ignore.case = TRUE) ~ "N",
+    TRUE ~ "Y"
+  )) %>%
+  filter(counted=="Y")
+
+# 2021
+dat.2021 <- dat.2021 %>%
+  mutate(
+    Cow = if_else(is.na(Cow), 0, Cow),
+    Calf = if_else(is.na(Calf), 0, Calf),
+    Spike = if_else(is.na(Spike), 0, Spike),
+    Bull = if_else(is.na(Bull), 0, Bull),
+    Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
+  )
+obs.2021 <- dat.2021 %>%
+  transmute(
+    year = 2021,
+    date = as.Date(strptime(dat.2021$Date, "%b %d %Y")),
+    stratum = EPU,
+    subunit = 1,
+    total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
+    cows = Cow,
+    calves = Calf,
+    spikes = Spike,
+    bulls = Bull,
+    unclass = `Unclass.`,
+    grpsize = `Elk Obs.`,
+    voc = `% cover`,
+    habitat = Habitat,
+    activity = Activity,
+    survey_type = `Survey type`,
+    notes = `Notes:`
+  )
+obs.2021 <- obs.2021 %>%
+  mutate(counted = case_when(
+    grepl("re-flown", notes, ignore.case = TRUE) |
+      grepl("not in total", notes, ignore.case = TRUE) |
+      grepl("not counted", notes, ignore.case = TRUE) |
+      grepl("no effort", notes, ignore.case = TRUE) |
+      grepl("incidental", notes, ignore.case = TRUE) ~ "N",
+    TRUE ~ "Y"
+  )) %>%
+  filter(counted=="Y")
+
+# bind together
+obs.all <- bind_rows(obs.2022, obs.2021)
+
+# ensure EPU names match
+setdiff(obs.all$stratum, EPU.list) # 11 names don't match EPU list names, fix below
+obs.all <- obs.all %>%
+  mutate(stratum = case_when(
+    grepl("Rainy", stratum, ignore.case = TRUE) ~ "Rainy-Gray",
+    grepl("Narrows", stratum, ignore.case = TRUE) ~ "Tzoonie-Narrows",
+    grepl("Deserted", stratum, ignore.case = TRUE) ~ "Deserted-Stakawus",
+    grepl("Chehalis", stratum, ignore.case = TRUE) ~ "Chehalis",
+    grepl("Sechelt", stratum, ignore.case = TRUE) ~ "Sechelt Peninsula",
+    grepl("Homa", stratum, ignore.case = TRUE) ~ "Homathko",
+    grepl("Haslam", stratum, ignore.case = TRUE) ~ "Haslam",
+    grepl("Dani", stratum, ignore.case = TRUE) ~ "Powell-Daniels",
+    grepl("Quatum", stratum, ignore.case = TRUE) ~ "Quatam",
+    grepl("Lillooet", stratum, ignore.case = TRUE) ~ "Lower Lillooet",
+    grepl("Vancouver", stratum, ignore.case = TRUE) ~ "Vancouver",
+    grepl("Squamish", stratum, ignore.case = TRUE) ~ "Squamish",
+    grepl("Indian", stratum, ignore.case = TRUE) ~ "Indian",
+    grepl("Stave", stratum, ignore.case = TRUE) ~ "Stave",
+    grepl("Theo", stratum, ignore.case = TRUE) ~ "Theo",
+    grepl("Mcnab", stratum, ignore.case = TRUE) ~ "McNab",
+    grepl("Bear", stratum, ignore.case = TRUE) ~ "Bear",
+    TRUE ~ stratum
+  ))
+
+# make sure all EPU names match
+setdiff(obs.all$stratum, EPU.list) #If returns "character(0)", all names match
+
+# standardize survey types, habitat types, and activity
+obs.all <- obs.all %>%
+mutate(
+  survey_type = case_when(
+    grepl("incidental", survey_type, ignore.case = TRUE) ~ "Incidental",
+    grepl("telemetry", survey_type, ignore.case = TRUE) ~ "Telemetry",
+    grepl("transect", survey_type, ignore.case = TRUE) ~ "Inventory",
+    grepl("inventory", survey_type, ignore.case = TRUE) ~ "Inventory",
+    TRUE ~ "Other"
+  ),
+  # 1 - rock / other (gravel, landfill, road, WTP, other)
+  # 2 - meadow / riparian (field, meadow, riparian, wetland, river, slide)
+  # 3 - cutblock / powerline (block, powerline, NSR, FTG)
+  # 4 - mature forest (mature, old)
+  habitat = case_when(
+    grepl("mature|old|conifer", habitat, ignore.case = TRUE) ~ 4,
+    grepl("block|powerline|nsr|ftg", habitat, ignore.case = TRUE) ~ 3,
+    grepl("field|meadow|riparian|wetland|river|slide|out", habitat, ignore.case = TRUE) ~ 2,
+    grepl("gravel|landfill|road|wtp|other", habitat, ignore.case = TRUE) ~ 1
+  ),
+  activity = case_when(
+    grepl("standing|moving|run", activity, ignore.case = TRUE) ~ 1,
+    grepl("bed", activity, ignore.case = TRUE) ~ 0)
+  )
+
+# standardize habitat
+
+
+# Get rid of incidental observations outside each year's surveyed EPUs
+obs.all.ins <- left_join(obs.all, eff, by=c("stratum"="EPU")) %>%
+  filter(total > 0) %>%
+  mutate(stratum = if_else(
+            year == 2022 & surveyed_2022 == T, stratum,
+            if_else(
+              year == 2021 & surveyed_2021 == T, stratum,
+              "X"))) %>%
+  filter(subunit != "X")
+
+
+# Set numeric fields 
+obs <- obs.all.ins %>%
+  mutate(year = as.integer(year),
+         stratum = stratum,
+         total = as.integer(total),
+         cows = as.integer(cows),
+         calves = as.integer(calves),
+         spikes = as.integer(spikes),
+         bulls = as.integer(bulls),
+         unclass = as.integer(unclass),
+         voc = as.double(voc),
+         grpsize = as.integer(grpsize))
+
+# make sure totals = sum of cows, calves, etc
+obs %>%
+  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %>%
+  view()
+# If records show up, use code below to add unclassified individuals & re-check
+obs <- obs %>%
+  mutate(
+    unclass = if_else(
+      total <= (cows+calves+spikes+bulls+unclass), unclass,
+      total-((cows+calves+spikes+bulls))),
+    total = (cows+calves+spikes+bulls+unclass)
+    )
+obs %>%
+  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass))
+# resulting table should have 0 rows
+
+# get rid of NAs in voc
+# add mean voc by habitat
+avg.voc <- obs %>%
+  group_by(habitat) %>%
+  summarize(mean_voc = mean(voc, na.rm=T))
+avg.voc.overall <- mean(obs$voc, na.rm=T)
+
+obs.voc <- left_join(obs, avg.voc, by="habitat") %>%
+  mutate(mean_voc = if_else(is.na(mean_voc), avg.voc.overall, mean_voc),
+         voc = if_else(is.na(voc), mean_voc, voc))
+
+obs <- obs.voc
+```
+
+```{r sight.dat}
+## GATHER SIGHTABILITY DATA ####
+exp.tmp <- obs %>%
+  filter(survey_type == "Telemetry" | survey_type == "Inventory")
+# only keep observations of collared elk
+exp.tmp <- exp.tmp %>%
+  mutate(collar =
+           case_when(
+             grepl("no collar", notes, ignore.case = TRUE) ~ "No Collar",
+             grepl("collar in group", notes, ignore.case = TRUE) ~ "Yes",
+             grepl("collars in group", notes, ignore.case = TRUE) ~ "Yes, Yes",
+             grepl("dart", notes, ignore.case = TRUE) ~ "No Collar",
+             str_detect(notes, "15\\d.\\d\\d\\d") ~ as.character(
+               str_extract_all(notes, "15\\d.\\d\\d\\d"), sep=", "),
+             str_detect(notes, "\\d\\d\\d\\d\\d") ~ as.character(
+               str_extract_all(notes, "\\d\\d\\d\\d\\d"), sep=", "),
+             str_detect(notes, "2 yellow collar") ~ "Yellow, Yellow",      
+             grepl("yellow collar", notes, ignore.case = TRUE) ~ "Yellow",
+             
+             grepl("Telemetry", `survey_type`) ~ "Yes",
+             
+             TRUE ~ "No Collar"
+           )
+  ) %>%
+  filter(collar != "No Collar") %>%
+  arrange(collar)
+
+# duplicate observations with 2 collars, then clean
+exp.tmp <- rbind(exp.tmp, exp.tmp[rep(c(27:28, 45:47, 20:21), 1),])
+
+## SIGHT DAT ####
+
+# 1.  sight_dat.csv = Sightability survey data:  64 records
+# w = habitat indicator ()
+# x = visual obstrcution measurements associated with the test trial data used to develop the sightability model
+# y = activity indicator (0 if bedded, 1 if standing)
 # z = detection indicator (1 if the group was observed, 0 otherwise)
 
 sight.dat <- exp.tmp %>%
-  mutate(x.tilde = voc,
-         z.tilde = if_else(survey.type=="Telemetry", 0, 1), .keep="none")
+  mutate(a = as.double(activity),
+         s = as.double(habitat),
+         x.tilde = as.double(voc),
+         z.tilde = as.double(if_else(survey_type=="Telemetry", 0, 1), .keep="none")) %>%
+  select(x.tilde, z.tilde)
 glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
+sight.dat %>% group_by(z.tilde) %>% summarize(mean_x = mean(x.tilde))
 ```
 
-```{r operational data}
+```{r oper.dat}
+## OPER DAT ####
+
 #  2. oper_dat.csv:  Operational survey data:  4380 records
 # (includes observed and augmented data for the annual surveys in  2006 and 2007 combined).
 # Augmented data records have NA (missing) for x, y, q.
 # x = visual obstruction measurements
 # ym1 = y-1, where y = observed group size
-# h = stratum identifier (1, 2, 3 correspond to low, medium and high density strata)
+# h = stratum identifier (all same stratum)
 # q = indicator variable that represents whether the group belongs to the study population (equal to 1 for all observed groups and NA for all augmented groups).
 # z = detection indicator (equal to 1 if the group was observed during the operational survey and 0 otherwise)
 # subunits = unique plot identifier (for all sampled plots).
 # yr = year of observation (1 = 2006, 2= 2007)
 
 # non-augmented data
-# need average voc of each subunit
-dat.voc <- bind_rows(dat.2021, dat.2022) %>%
-  mutate(
-    subunit = EPU,
-    total = `Elk Obs.`,
-    survey.type = `Survey type`,
-    voc = `% cover`,
-    .keep = "unused"
-    )
 
-setdiff(dat.voc$subunit, EPU.list) # 12 names don't match EPU list names, fix below
 
-dat.voc <- dat.voc %>%
-  mutate(subunit = case_when(
-    grepl("Rainy", subunit, ignore.case = TRUE) ~ "Rainy-Gray",
-    grepl("Narrows", subunit, ignore.case = TRUE) ~ "Tzoonie-Narrows",
-    grepl("Deserted", subunit, ignore.case = TRUE) ~ "Deserted-Stakawus",
-    grepl("Sechelt", subunit, ignore.case = TRUE) ~ "Sechelt Peninsula",
-    grepl("Homathco", subunit, ignore.case = TRUE) ~ "Homathko",
-    grepl("Haslam", subunit, ignore.case = TRUE) ~ "Haslam",
-    grepl("Dani", subunit, ignore.case = TRUE) ~ "Powell-Daniels",
-    grepl("Quatum", subunit, ignore.case = TRUE) ~ "Quatam",
-    grepl("Vancouver", subunit, ignore.case = TRUE) ~ "Vancouver",
-    grepl("Mcnab", subunit, ignore.case = TRUE) ~ "McNab",
-    grepl("southgate", subunit, ignore.case = TRUE) ~ "Southgate",
-    TRUE ~ subunit
-  )) %>%
-  # now clean to remove telemetry obs
-  mutate(
-    survey.type = case_when(
-      grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-      grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-      grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-      TRUE ~ "Other"
-      )
-    ) %>%
-  filter(survey.type != "Telemetry") %>%
-  # get average voc
-  select(subunit, voc) %>%
-  group_by(subunit) %>%
-  summarize(avg_voc = round(mean(voc, na.rm=T), digits = 2))
+oper.dat <- obs %>%
+  transmute(a = as.double(activity),
+            s = as.double(habitat),
+            x = as.double(voc),
+            ym1 = total-1,
+            h = ID,
+            q = 1,
+            z = if_else(survey_type == "Telemetry", 0, 1),
+            yr = if_else(year == 2021, 1, 2),
+            subunits = ID) %>%
+  glimpse()
 
- oper.dat <-  left_join(obs, dat.voc, by="subunit") %>%
-   mutate(voc = if_else(is.na(voc), avg_voc, as.double(voc*.01)),
-          q = 1,
-          z = 1,
-          ym1 = grpsize - 1,
-          yr = as.double(year),
-          h = as.double(stratum)) %>%
-   select(x = voc, ym1, h, q, z, yr, subunits = subunit)
-
- # augmented data
- # need to determine max m of each h
-m.est <- obs %>%
-  group_by(subunit, year, stratum) %>%
+# augmented data
+# need to determine max m of each h
+m.est <- oper.dat %>%
+  group_by(yr, h) %>%
   summarize(m = n())
 m.max <- m.est %>%
-  group_by(subunit) %>%
-  summarize(m.max = max(m))
+  group_by(h) %>%
+  summarize(yr = yr,
+            m = m,
+            m.max = max(m))
 b.h <- m.max %>%
-  mutate(b.h = 10*m.max)
-  oper.dat.aug <-  full_join(m.est, b.h, by="subunit") %>%
-    mutate(B_minus_m = b.h-m)
-  oper.dat.aug <- oper.dat.aug[rep(1:nrow(oper.dat.aug), oper.dat.aug$B_minus_m),] %>%
-    mutate(x = NA, ym1 = NA, h = stratum, q = NA, z = 0, yr = year, subunits = subunit, .keep="none")
+  mutate(b.h = 10*m.max,
+         B_minus_m = b.h-m)
+oper.dat.aug <- b.h[rep(1:nrow(b.h), b.h$B_minus_m),] %>%
+  mutate(a = NA, s = NA, x = NA, ym1 = NA, h = h, q = NA, z = 0, yr = yr, subunits = h, .keep="none") %>%
+  ungroup()
 
-  oper.dat <- rbind(oper.dat, oper.dat.aug[,3:9])
+oper.dat <- rbind(oper.dat, oper.dat.aug) %>%
+  arrange(yr, q, h)
 
-oper.dat # check - looks the same as Fieberg's oper_dat csv
+glimpse(oper.dat) # check
 ```
-```{r plot data}
+
+```{r plot.dat and scalar.dat}
+## PLOT DAT ####
+
 # 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
 # yr.plots = year the plot was sampled (1 = 2006, 2= 2007)
-plot.dat <- eff %>%
-  select(h.plots = ID, yr.plots = year)
-```
-
-```{r scalar data}
-# 4.  scalar_dat.csv:  Scalars:
+plot.dat <- oper.dat %>%
+  select(yr, h) %>%
+  distinct() %>%
+  mutate(h.plots = h, 
+         yr.plots = yr) %>%
+  select(h.plots, yr.plots) %>%
+  arrange(yr.plots, h.plots)
+glimpse(plot.dat)
+# 4.  scalar_dat.csv:  
+#   Scalars:
 #   R = number of sightability trials (64)
 # 
 #   Ngroups = number of observed and augmented groups for the 2006 and 2007 annual operational surveys (7290)
@@ -968,42 +1246,176 @@ plot.dat <- eff %>%
 
 scalar.dat <- as.data.frame(matrix(NA, 1, 4))
 colnames(scalar.dat) <- c("R", "Ngroups", "Nsubunits.yr", "ny1")
+
 scalar.dat <- scalar.dat %>%
-  mutate(R = nrow(sight.dat),
-         Ngroups = nrow(oper.dat),
-         Nsubunits.yr = nrow(plot.dat),
-         ny1 = nrow(oper.dat[oper.dat$yr==2016,])
+  mutate(R = as.double(nrow(sight.dat)),
+         Ngroups = as.double(nrow(oper.dat)),
+         Nsubunits.yr = as.double(nrow(plot.dat)),
+         ny1 = as.double(nrow(oper.dat[oper.dat$yr==1,]))
   )
 ```
 
-```{r run model}
+```{r jags model}
+## RUN MODEL ####
+
 # specify initial values
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
 # Parameters monitored
-params <- c("tau.samp1", "tau.samp2", "tau.samp3", "tau.samp4", "tau.samp5", "tau.samp6", "bo", "bvoc")
+params <- c("taus", "bo", "bvoc")
 
 # MCMC settings
-ni <- 40000 # build to 40000
+ni <- 10000 # build to 40000
 nt <- 2     # 50% thinning rate (discard every 2nd iteration)
-nb <- 20000 # build to 20000
+nb <- 5000 # build to 20000
 nc <- 3
 
 # Bundle data
-bundle.data <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
-                    x=oper.dat$x, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper_dat
-                    h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
-                    R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, ny1=scalar.dat$ny1) # scalar_dat
+bundle.dat <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
+                  x=oper.dat$x+.000001, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper_dat
+                   h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
+                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, ny1=scalar.dat$ny1) # scalar_dat
 
 # Run model
-jags_output <- jags(bundle.data, inits, params, "beta_binom_model_elksim.txt",
-                       n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
-                       parallel=TRUE, n.cores=1)
+jags_output <- jags(bundle.dat, inits, params, "beta_binom_model_elk2022.txt", nc, ni, nb, nt)
 jags_output
+summary(jags_output)
 
-save("jags_output",file="jags_output.RData") #
+save("jags_output",file="jags_output.RData")
 
-summary(jags_output) # only the first 18 models ran
+tau.matrix <- bind_cols(yr = bundle.dat$yr, h = bundle.dat$h, tau = jags_output$BUGSoutput$mean$taus) %>%
+  group_by(h, yr) %>%
+  summarize(tau.samp = sum(tau))
+
+```
+
+```{r jags results}
+
+load("jags_output.RData")
+
+jags.summary <- as.data.frame(jags_output$BUGSoutput$summary)
+
+tau.jags <- matrix(NA,6,5)
+tau.jags[,1] <- c(2016, 2017, 2018, 2019, 2020, 2021)
+count <- 1
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+count <- count + 1
+for(i in 1:1){
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+}
+count <- count + 1
+for(i in 1:1){
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+}
+count <- count + 1
+for(i in 1:1){
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+}
+count <- count + 1
+for(i in 1:1){
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+}
+count <- count + 1
+for(i in 1:1){
+  tau.jags[count,2] <- round(jags.summary$mean[count+3])
+  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+}
+
+tau.jags
+colnames(tau.jags) <- c("year", "mean","LCL","UCL","Rhat")
+tau.jags <- as.data.frame(tau.jags)
+
+```
+```{r plotting}
+
+###--- Plotting
+tau.Sechelt50_jags_simsplot = ggplot(tau.Sechelt50_jags, aes(x = reorder(row.names(tau.Sechelt50_jags),mean), y=mean))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50_jags), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+tau.Sechelt50_jags_simsplot
+ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+
+
+tau.Sechelt50_jags_sub <- tau.Sechelt50_jags %>% filter(mean <300) # only 15 / 46 with pop estimates < 300
+tau.Sechelt50_jags_sub_simsplot = ggplot(tau.Sechelt50_jags_sub, aes(x = reorder(row.names(tau.Sechelt50_jags_sub),mean), y=mean))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = LCL, ymax = UCL)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+tau.Sechelt50_jags_sub_simsplot
+ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+
+
+tau.Sechelt50$model <- "mHT"
+tau.Sechelt50$simID <- row.names(tau.Sechelt50)
+names(tau.Sechelt50)
+tau.Sechelt50_jags$model <- "Bayesian"
+names(tau.Sechelt50_jags)
+tau.Sechelt50_jags$simID <- row.names(tau.Sechelt50_jags)
+
+Sechelt50 <- rbind(tau.Sechelt50, tau.Sechelt50_jags %>% select(-Rhat) %>% rename(tau.hat=mean))
+
+
+col.cat <- as.character(c("#2028B2","#B2AA20"))
+Sechelt50_sub <- Sechelt50 %>% filter(tau.hat<300)
+
+Sechelt50_sub_simsplot = Sechelt50_sub %>%
+  ggplot(aes(x = reorder(simID,tau.hat), y=tau.hat, fill=model))+
+  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+  scale_fill_manual(values=unique(col.cat)) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(simID, ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))
+Sechelt50_sub_simsplot
+ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_both_sub_simsplot.PNG")
+
+Sechelt50_simsplot = Sechelt50 %>%
+  ggplot(aes(x = reorder(rownames(Sechelt50),tau.hat), y=tau.hat, fill=model))+
+  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+  scale_fill_manual(values=unique(col.cat)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(rownames(Sechelt50), ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+  theme(axis.text.y = element_text(size=14))+
+  ylim(c(0,20000))
+Sechelt50_simsplot
+ggsave(Sechelt50_simsplot, file="out/Sechelt50_both_simsplot_simsplot.PNG")
+
+
 ```
 
 

@@ -1,0 +1,52 @@
+model
+{
+    bo ~ dnorm(0.00000E+00, 0.1)
+    bvoc ~ dnorm(0.00000E+00, 0.1)
+    for (i in 1:R) {
+        logitg[i] <- bo + bvoc * x.tilde[i]
+        g.tilde[i] <- exp(logitg[i])/(1 + exp(logitg[i]))
+        z.tilde[i] ~ dbern(g.tilde[i])
+    }
+    for (j in 1:2) {
+        for (i in 1:1) {
+            alpha.voc[i, j] ~ dgamma(1, 0.01)
+            beta.voc[i, j] ~ dgamma(1, 0.01)
+        }
+    }
+    for (j in 1:Ngroups) {
+        x[j] ~ dbeta(alpha.voc[h[j], yr[j]], beta.voc[h[j], yr[j]])  
+            T(0.00000E+00, 0.999)
+    }
+    for (k in 1:2) {
+        for (i in 1:1) {
+            loglam[i, k] ~ dnorm(0.00000E+00, 0.1)  T(-10, 10)
+            lam[i, k] <- exp(loglam[i, k])
+        }
+    }
+    t.nu <- 7.763179
+    t.sigma <- 1.566267
+    for (j in 1:2) {
+        for (k in 1:1) {
+            mu.h[k, j] ~ dt(0.00000E+00, pow(t.sigma, -2), t.nu)  
+                T(-5, 5)
+            tau.h[k, j] ~ dgamma(20, 20)
+            sd.h[k, j] <- 1/sqrt(tau.h[k, j])
+        }
+    }
+    for (i in 1:Nsubunits.yr) {
+        eps[i] ~ dnorm(0.00000E+00, tau.h[h.plots[i], yr.plots[i]])
+        logitpsi[i] <- mu.h[h.plots[i], yr.plots[i]] + eps[i]
+        psi[i] <- exp(logitpsi[i])/(1 + exp(logitpsi[i]))
+    }
+    for (i in 1:Ngroups) {
+        q[i] ~ dbin(psi[subunits[i]], 1)
+        g[i] <- exp(bo + bvoc * x[i])/(1 + exp(bo + bvoc * x[i]))
+        pseen[i] <- q[i] * g[i]
+        z[i] ~ dbin(pseen[i], 1)
+        ym1[i] ~ dpois(lam[h[i], yr[i]])
+        y[i] <- ym1[i] + 1
+        taus[i] <- q[i] * y[i]
+    }
+    tau.samp1 <- sum(taus[1:ny1])
+    tau.samp2 <- sum(taus[(ny1 + 1):Ngroups])
+}
