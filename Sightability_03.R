@@ -43,128 +43,128 @@ load("jags_output.Rdata")
 
 jags_output
 
-tau.matrix <- bind_cols(yr = bundle.dat$yr, h = bundle.dat$h, tau = jags_output$BUGSoutput$mean$taus) %>%
-  group_by(h, yr) %>%
-  summarize(tau.samp = sum(tau))
-
-# 3.2 CLEAN OUTPUT ####
-
-jags.summary <- as.data.frame(jags_output$BUGSoutput$summary)
-
-tau.jags <- matrix(NA,6,5)
-tau.jags[,1] <- c(2016, 2017, 2018, 2019, 2020, 2021)
-count <- 1
-tau.jags[count,2] <- round(jags.summary$mean[count+3])
-tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-count <- count + 1
-for(i in 1:1){
-  tau.jags[count,2] <- round(jags.summary$mean[count+3])
-  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-}
-count <- count + 1
-for(i in 1:1){
-  tau.jags[count,2] <- round(jags.summary$mean[count+3])
-  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-}
-count <- count + 1
-for(i in 1:1){
-  tau.jags[count,2] <- round(jags.summary$mean[count+3])
-  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-}
-count <- count + 1
-for(i in 1:1){
-  tau.jags[count,2] <- round(jags.summary$mean[count+3])
-  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-}
-count <- count + 1
-for(i in 1:1){
-  tau.jags[count,2] <- round(jags.summary$mean[count+3])
-  tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
-  tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
-  tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
-}
-
-tau.jags
-colnames(tau.jags) <- c("year", "mean","LCL","UCL","Rhat")
-tau.jags <- as.data.frame(tau.jags)
-
-
-# 3.3 PLOT OUTPUT ####
-tau.Sechelt50_jags_simsplot = ggplot(tau.Sechelt50_jags, aes(x = reorder(row.names(tau.Sechelt50_jags),mean), y=mean))+
-  geom_point(colour="black", shape=15, size=3)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(row.names(tau.Sechelt50_jags), ymin = LCL, ymax = UCL)) +
-  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))
-tau.Sechelt50_jags_simsplot
-ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
-
-
-tau.Sechelt50_jags_sub <- tau.Sechelt50_jags %>% filter(mean <300) # only 15 / 46 with pop estimates < 300
-tau.Sechelt50_jags_sub_simsplot = ggplot(tau.Sechelt50_jags_sub, aes(x = reorder(row.names(tau.Sechelt50_jags_sub),mean), y=mean))+
-  geom_point(colour="black", shape=15, size=3)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = LCL, ymax = UCL)) +
-  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))
-tau.Sechelt50_jags_sub_simsplot
-ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
-
-
-tau.Sechelt50$model <- "mHT"
-tau.Sechelt50$simID <- row.names(tau.Sechelt50)
-names(tau.Sechelt50)
-tau.Sechelt50_jags$model <- "Bayesian"
-names(tau.Sechelt50_jags)
-tau.Sechelt50_jags$simID <- row.names(tau.Sechelt50_jags)
-
-Sechelt50 <- rbind(tau.Sechelt50, tau.Sechelt50_jags %>% select(-Rhat) %>% rename(tau.hat=mean))
-
-
-col.cat <- as.character(c("#2028B2","#B2AA20"))
-Sechelt50_sub <- Sechelt50 %>% filter(tau.hat<300)
-
-Sechelt50_sub_simsplot = Sechelt50_sub %>%
-  ggplot(aes(x = reorder(simID,tau.hat), y=tau.hat, fill=model))+
-  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
-  scale_fill_manual(values=unique(col.cat)) +
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(simID, ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
-  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))
-Sechelt50_sub_simsplot
-ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_both_sub_simsplot.PNG")
-
-Sechelt50_simsplot = Sechelt50 %>%
-  ggplot(aes(x = reorder(rownames(Sechelt50),tau.hat), y=tau.hat, fill=model))+
-  geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
-  scale_fill_manual(values=unique(col.cat)) +
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(rownames(Sechelt50), ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
-  geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
-  theme(axis.text.y = element_text(size=14))+
-  ylim(c(0,20000))
-Sechelt50_simsplot
-ggsave(Sechelt50_simsplot, file="out/Sechelt50_both_simsplot_simsplot.PNG")
+# tau.matrix <- bind_cols(yr = bundle.dat$yr, h = bundle.dat$h, tau = jags_output$BUGSoutput$mean$taus) %>%
+#   group_by(h, yr) %>%
+#   summarize(tau.samp = sum(tau))
+# 
+# # 3.2 CLEAN OUTPUT ####
+# 
+# jags.summary <- as.data.frame(jags_output$BUGSoutput$summary)
+# 
+# tau.jags <- matrix(NA,6,5)
+# tau.jags[,1] <- c(2016, 2017, 2018, 2019, 2020, 2021)
+# count <- 1
+# tau.jags[count,2] <- round(jags.summary$mean[count+3])
+# tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+# tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+# tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# count <- count + 1
+# for(i in 1:1){
+#   tau.jags[count,2] <- round(jags.summary$mean[count+3])
+#   tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+#   tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+#   tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# }
+# count <- count + 1
+# for(i in 1:1){
+#   tau.jags[count,2] <- round(jags.summary$mean[count+3])
+#   tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+#   tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+#   tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# }
+# count <- count + 1
+# for(i in 1:1){
+#   tau.jags[count,2] <- round(jags.summary$mean[count+3])
+#   tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+#   tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+#   tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# }
+# count <- count + 1
+# for(i in 1:1){
+#   tau.jags[count,2] <- round(jags.summary$mean[count+3])
+#   tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+#   tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+#   tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# }
+# count <- count + 1
+# for(i in 1:1){
+#   tau.jags[count,2] <- round(jags.summary$mean[count+3])
+#   tau.jags[count,3] <- round(jags.summary$`2.5%`[count+3])
+#   tau.jags[count,4] <- round(jags.summary$`97.5%`[count+3])
+#   tau.jags[count,5] <- round(jags.summary$Rhat[count+3], 2)
+# }
+# 
+# tau.jags
+# colnames(tau.jags) <- c("year", "mean","LCL","UCL","Rhat")
+# tau.jags <- as.data.frame(tau.jags)
+# 
+# 
+# # 3.3 PLOT OUTPUT ####
+# tau.Sechelt50_jags_simsplot = ggplot(tau.Sechelt50_jags, aes(x = reorder(row.names(tau.Sechelt50_jags),mean), y=mean))+
+#   geom_point(colour="black", shape=15, size=3)+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(row.names(tau.Sechelt50_jags), ymin = LCL, ymax = UCL)) +
+#   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+#   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+#   theme(axis.text.y = element_text(size=14))
+# tau.Sechelt50_jags_simsplot
+# ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+# 
+# 
+# tau.Sechelt50_jags_sub <- tau.Sechelt50_jags %>% filter(mean <300) # only 15 / 46 with pop estimates < 300
+# tau.Sechelt50_jags_sub_simsplot = ggplot(tau.Sechelt50_jags_sub, aes(x = reorder(row.names(tau.Sechelt50_jags_sub),mean), y=mean))+
+#   geom_point(colour="black", shape=15, size=3)+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = LCL, ymax = UCL)) +
+#   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+#   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+#   theme(axis.text.y = element_text(size=14))
+# tau.Sechelt50_jags_sub_simsplot
+# ggsave(tau.Sechelt50_jags_simsplot, file="out/tau.Sechelt50_jags_simsplot.PNG")
+# 
+# 
+# tau.Sechelt50$model <- "mHT"
+# tau.Sechelt50$simID <- row.names(tau.Sechelt50)
+# names(tau.Sechelt50)
+# tau.Sechelt50_jags$model <- "Bayesian"
+# names(tau.Sechelt50_jags)
+# tau.Sechelt50_jags$simID <- row.names(tau.Sechelt50_jags)
+# 
+# Sechelt50 <- rbind(tau.Sechelt50, tau.Sechelt50_jags %>% select(-Rhat) %>% rename(tau.hat=mean))
+# 
+# 
+# col.cat <- as.character(c("#2028B2","#B2AA20"))
+# Sechelt50_sub <- Sechelt50 %>% filter(tau.hat<300)
+# 
+# Sechelt50_sub_simsplot = Sechelt50_sub %>%
+#   ggplot(aes(x = reorder(simID,tau.hat), y=tau.hat, fill=model))+
+#   geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+#   scale_fill_manual(values=unique(col.cat)) +
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(simID, ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+#   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+#   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+#   theme(axis.text.y = element_text(size=14))
+# Sechelt50_sub_simsplot
+# ggsave(Sechelt50_sub_simsplot, file="out/Sechelt50_both_sub_simsplot.PNG")
+# 
+# Sechelt50_simsplot = Sechelt50 %>%
+#   ggplot(aes(x = reorder(rownames(Sechelt50),tau.hat), y=tau.hat, fill=model))+
+#   geom_point(colour="white", shape=21, size = 4, position=position_dodge(width=1))+
+#   scale_fill_manual(values=unique(col.cat)) +
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(rownames(Sechelt50), ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+#   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
+#   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
+#   theme(axis.text.y = element_text(size=14))+
+#   ylim(c(0,20000))
+# Sechelt50_simsplot
+# ggsave(Sechelt50_simsplot, file="out/Sechelt50_both_simsplot_simsplot.PNG")

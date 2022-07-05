@@ -886,16 +886,19 @@ sight.dat <- exp.tmp %>%
   mutate(a = as.double(activity),
          s = as.double(habitat),
          x.tilde = as.double(voc),
-         z.tilde = as.double(if_else(survey_type=="Telemetry", 0, 1), .keep="none")) %>%
-  select(x.tilde, z.tilde)
+         z.tilde = as.double(if_else(survey_type=="Telemetry", 0, 1), .keep="none"))
+
 glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
-sight.dat %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde),
-                                              min = min(x.tilde),
-                                              q1 = quantile(x.tilde, 0.25),
-                                              median = median(x.tilde),
-                                              q3 = quantile(x.tilde, 0.75),
-                                              max = max(x.tilde))
-# check to make sure stats make sense
+
+# test correlations between variables and z
+sight.dat %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde))
+
+cor.test(sight.dat$z.tilde, sight.dat$x.tilde, method="pearson") # -0.5338735 with p-value 0.00002698 -> significant moderate negative correlation between voc and z
+cor.test(sight.dat$z.tilde[!is.na(sight.dat$a)], sight.dat$a[!is.na(sight.dat$a)], method="pearson") # -0.08887529 with p-value 0.5268 -> no corelation between activity and z
+cor.test(sight.dat$z.tilde, sight.dat$s, method="pearson") # -0.5193816 with p-value 0.0000484 -> significant moderate negative correlation between habitat and z
+
+# voc is most significantly correlated with sightability -> select only voc
+sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
 
 ## 1.3.4 OPER DAT ####
 
