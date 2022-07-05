@@ -893,9 +893,15 @@ glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
 # test correlations between variables and z
 sight.dat %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde))
 
-cor.test(sight.dat$z.tilde, sight.dat$x.tilde, method="pearson") # -0.5338735 with p-value 0.00002698 -> significant moderate negative correlation between voc and z
-cor.test(sight.dat$z.tilde[!is.na(sight.dat$a)], sight.dat$a[!is.na(sight.dat$a)], method="pearson") # -0.08887529 with p-value 0.5268 -> no corelation between activity and z
-cor.test(sight.dat$z.tilde, sight.dat$s, method="pearson") # -0.5193816 with p-value 0.0000484 -> significant moderate negative correlation between habitat and z
+cor.test(sight.dat$z.tilde, sight.dat$x.tilde, method="pearson") # -0.5338735 with p-value 0.00002698 
+# -> significant moderate negative correlation between voc and z
+cor.test(sight.dat$z.tilde[!is.na(sight.dat$a)], sight.dat$a[!is.na(sight.dat$a)], method="pearson") # -0.08887529 with p-value 0.5268 
+# -> no corelation between activity and z
+cor.test(sight.dat$z.tilde, sight.dat$s, method="pearson") # -0.5193816 with p-value 0.0000484 
+# -> significant moderate negative correlation between habitat and z
+cor.test(sight.dat$z.tilde, sight.dat$total, method="pearson") # 0.1106949 with  p-value = 0.4211
+# -> no correlation between group size and z
+
 
 # voc is most significantly correlated with sightability -> select only voc
 sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
