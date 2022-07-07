@@ -47,3 +47,15 @@ input/BC_Warehouse_Data/Roads/DRA_DGTL_ROAD_ATLAS_MPAR_SP/DRA_MPAR_line.prj
 input/BC_Warehouse_Data/Roads/DRA_DGTL_ROAD_ATLAS_MPAR_SP/DRA_MPAR_line.dbf
 input/BC_Warehouse_Data/Roads/DRA_DGTL_ROAD_ATLAS_MPAR_SP/DRA_MPAR_line.cpg
 input/AnimalID_orig.csv
+input/Effort/areas_2022.csv
+input/jags_input.Rdata
+input/mHT_input.Rdata
+jags_output.RData
+jags_output_Sechelt.RData
+out/jags_effort.RData
+out/jags_output.RData
+out/jags_output_Sechelt.RData
+out/mHT.Sechelt_plot.PNG
+out/mHT_output.RData
+out/tau.jags.xlsx
+out/tau.jags_plot1.PNG
