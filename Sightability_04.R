@@ -3,19 +3,17 @@
 
 # LOAD PACKAGES ####
 
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable", "statip", "R2jags")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable", "statip", "R2jags")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
 # LOAD DATA ####
-setwd("C:/Users/TBRUSH/R/Elk_sightability")
-
-load("input/jags_output.RData")
-load("out/mHT_output.RData")
-
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
+
+load("jags_output.RData")
+load("mHT_output.RData")
 
 results_exp <- read_excel("C:/Users/TBRUSH/R/Elk_sightability/input/SurveyData_ SPRING_2022.xls", 
                           sheet = "2022 Summary", range = "A2:AH29")
@@ -27,89 +25,142 @@ results_exp <- results_exp %>%
 
 # mHT ####
 
-## Summary plots ####
+## Year 1 plots ####
 
 ### All strata ####
-mHT.all <- bind_rows(mHT.all.2021, mHT.all.2021.voc)
-mHT.all$year <- as.character(2021)
-mHT.all$covariate <- c("None", "VOC")
-mHT.all <- mHT.all %>%
-  unite(year, covariate, col = "ID") %>%
-  select(ID, tau.hat, lcl, ucl)
+mHT.all.2021$covariate <- "None"
+mHT.all.2021$year <- "2021"
+mHT.all.2021.voc$covariate <- "VOC"
+mHT.all.2021.voc$year <- "2021"
 
-mHT.all_plot = ggplot(mHT.all, aes(x = ID, y=tau.hat))+
-  geom_point(colour="black", shape=15, size=3)+
+mHT.all_y1 <- bind_rows(mHT.all.2021, mHT.all.2021.voc)
+
+mHT.all_plot1 = ggplot(mHT.all_y1, aes(x=covariate, y=tau.hat))+
+  geom_point(color="black", shape=15, size=3)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  xlab(expression(paste("Year"))) +
+  xlab(expression(paste("2021"))) +
   ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(ID, ymin =lcl, ymax = ucl)) +
+  geom_linerange(aes(covariate, ymin =lcl, ymax = ucl)) +
   theme(axis.title.x= element_text(size=14)) +
   theme(axis.text.y = element_text(size=14))
 
-mHT.all_plot
+mHT.all_plot1
 
 ### By strata ####
-mHT.strat.2021$ID <- row.names(mHT.strat.2021)
+mHT.strat.2021$EPU <- row.names(mHT.strat.2021)
 mHT.strat.2021$covariate <- "None"
-mHT.strat.2021.voc$ID <- row.names(mHT.strat.2021.voc)
+mHT.strat.2021.voc$EPU <- row.names(mHT.strat.2021.voc)
 mHT.strat.2021.voc$covariate <- "VOC"
 
-mHT.strat <- bind_rows(mHT.strat.2021, mHT.strat.2021.voc) %>%
-  arrange(ID, covariate)
+mHT.strat_y1 <- bind_rows(mHT.strat.2021, mHT.strat.2021.voc) %>%
+  arrange(EPU, covariate)
 
-  mHT.strat_plot = ggplot(mHT.strat, aes(x = row.names(mHT.strat), y=tau.hat, color=covariate))+
-    geom_point(shape=15, size=3)+
+  mHT.strat_plot1 = ggplot(mHT.strat_y1, aes(x =EPU, y=tau.hat, color=covariate))+
+    geom_point(shape=15, size=3, position=position_dodge(1))+
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_line()) +
+          panel.background = element_blank(), axis.line = element_line(color="black")) +
     xlab(expression(paste("EPU"))) +
     ylab(expression(paste("Population Estimate ± 95 CI"))) +
-    geom_linerange(aes(row.names(mHT.strat), ymin =LCL, ymax = UCL)) +
+    geom_linerange(aes(EPU, ymin =LCL, ymax = UCL), position=position_dodge(1)) +
     theme(axis.title.x= element_text(size=14), axis.text.x=element_text(size=12, angle = 90, color="black")) +
     theme(axis.text.y = element_text(size=14))
-  mHT.strat_plot
+  mHT.strat_plot1
 
-# voc doesn't improve estimates -> go without
+# voc may improve estimates -> go with
   
-  mHT.strat_plot = ggplot(mHT.strat.2021, aes(x = ID, y=tau.hat))+
-    geom_point(shape=15, size=3)+
-    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_line()) +
-    xlab(expression(paste("EPU"))) +
-    ylab(expression(paste("Population Estimate ± 95 CI"))) +
-    geom_linerange(aes(ID, ymin =LCL, ymax = UCL)) +
-    theme(axis.title.x= element_text(size=14), axis.text.x = element_text(size=12, angle = 90, color="black")) +
-    theme(axis.text.y = element_text(size=12))
-mHT.strat_plot
+#   mHT.strat_plot1 = ggplot(mHT.strat.2021.voc, aes(x = ID, y=tau.hat))+
+#     geom_point(shape=15, size=3)+
+#     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#           panel.background = element_blank(), axis.line = element_line()) +
+#     xlab(expression(paste("EPU"))) +
+#     ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#     geom_linerange(aes(ID, ymin =LCL, ymax = UCL)) +
+#     theme(axis.title.x= element_text(size=14), axis.text.x = element_text(size=12, angle = 90, color="black")) +
+#     theme(axis.text.y = element_text(size=12))
+# mHT.strat_plot1
 
-## 2.7.2 Sechelt Peninsula ####
+## Year 2 plots ####
+mHT.all.2022$covariate <- "None"
+mHT.all.2022$year <- "2022"
+mHT.all.2022.voc$covariate <- "VOC"
+mHT.all.2022.voc$year <- "2022"
 
-tau.Sechelt <- matrix(NA,6,3)
-i<- 1
-for(i in 1:3 ){
-  tau.Sechelt[1,i] <- mHT.strat.2016["Sechelt Peninsula", i]
-  tau.Sechelt[2,i] <- mHT.strat.2017["Sechelt Peninsula", i]
-  tau.Sechelt[3,i] <- mHT.strat.2018["Sechelt Peninsula", i]
-  tau.Sechelt[4,i] <- mHT.strat.2019["Sechelt Peninsula", i]
-  tau.Sechelt[5,i] <- mHT.strat.2020["Sechelt Peninsula", i]
-  tau.Sechelt[6,i] <- mHT.strat.2021["Sechelt Peninsula", i]
-}
-rownames(tau.Sechelt) <- 2016:2021
-colnames(tau.Sechelt) <- c("Estimate","LCL","UCL")
-tau.Sechelt <- as.data.frame(tau.Sechelt)
+mHT.all_y2 <- bind_rows(mHT.all.2022, mHT.all.2022.voc) 
 
-mHT.Sechelt_plot = ggplot(tau.Sechelt, aes(x = row.names(tau.Sechelt), y=Estimate))+
-  geom_point(colour="black", shape=15, size=3)+
+mHT.all_plot2 = ggplot(mHT.all_y2, aes(x=covariate, y=tau.hat))+
+  geom_point(shape=15, size=3)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  xlab(expression(paste("Year"))) +
+  xlab(expression(paste("2022"))) +
   ylab(expression(paste("Population Estimate ± 95 CI"))) +
-  geom_linerange(aes(row.names(tau.Sechelt), ymin = LCL, ymax = UCL)) +
+  geom_linerange(aes(covariate, ymin =lcl, ymax = ucl)) +
   theme(axis.title.x= element_text(size=14)) +
   theme(axis.text.y = element_text(size=14))
-mHT.Sechelt_plot
 
-ggsave(mHT.Sechelt_plot, file="mHT.Sechelt_plot.PNG")
+mHT.all_plot2
+
+### By strata ####
+mHT.strat.2022$EPU <- row.names(mHT.strat.2022)
+mHT.strat.2022$covariate <- "None"
+mHT.strat.2022.voc$EPU <- row.names(mHT.strat.2022.voc)
+mHT.strat.2022.voc$covariate <- "VOC"
+
+mHT.strat_y2 <- bind_rows(mHT.strat.2022, mHT.strat.2022.voc) %>%
+  arrange(EPU, covariate)
+
+mHT.strat_plot2 = ggplot(mHT.strat_y2, aes(x =EPU, y=tau.hat, color=covariate))+
+  geom_point(shape=15, size=3, position=position_dodge(.9))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line()) +
+  xlab(expression(paste("EPU"))) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(EPU, ymin =LCL, ymax = UCL), position=position_dodge(0.9)) +
+  theme(axis.title.x= element_text(size=14), axis.text.x=element_text(size=12, angle = 90, color="black")) +
+  theme(axis.text.y = element_text(size=14))
+mHT.strat_plot2
+
+# voc may improve estimates -> go with
+
+# mHT.strat_plot1 = ggplot(mHT.strat.2021.voc, aes(x = ID, y=tau.hat))+
+#   geom_point(shape=15, size=3)+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line()) +
+#   xlab(expression(paste("EPU"))) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(ID, ymin =LCL, ymax = UCL)) +
+#   theme(axis.title.x= element_text(size=14), axis.text.x = element_text(size=12, angle = 90, color="black")) +
+#   theme(axis.text.y = element_text(size=12))
+# mHT.strat_plot1
+
+## 2.7.2 Sechelt Peninsula ####
+# 
+# tau.Sechelt <- matrix(NA,6,3)
+# i<- 1
+# for(i in 1:3 ){
+#   tau.Sechelt[1,i] <- mHT.strat.2016["Sechelt Peninsula", i]
+#   tau.Sechelt[2,i] <- mHT.strat.2017["Sechelt Peninsula", i]
+#   tau.Sechelt[3,i] <- mHT.strat.2018["Sechelt Peninsula", i]
+#   tau.Sechelt[4,i] <- mHT.strat.2019["Sechelt Peninsula", i]
+#   tau.Sechelt[5,i] <- mHT.strat.2020["Sechelt Peninsula", i]
+#   tau.Sechelt[6,i] <- mHT.strat.2021["Sechelt Peninsula", i]
+# }
+# rownames(tau.Sechelt) <- 2016:2021
+# colnames(tau.Sechelt) <- c("Estimate","LCL","UCL")
+# tau.Sechelt <- as.data.frame(tau.Sechelt)
+# 
+# mHT.Sechelt_plot = ggplot(tau.Sechelt, aes(x = row.names(tau.Sechelt), y=Estimate))+
+#   geom_point(colour="black", shape=15, size=3)+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+#   xlab(expression(paste("Year"))) +
+#   ylab(expression(paste("Population Estimate ± 95 CI"))) +
+#   geom_linerange(aes(row.names(tau.Sechelt), ymin = LCL, ymax = UCL)) +
+#   theme(axis.title.x= element_text(size=14)) +
+#   theme(axis.text.y = element_text(size=14))
+# mHT.Sechelt_plot
+# 
+# ggsave(mHT.Sechelt_plot, file="mHT.Sechelt_plot.PNG")
 
 # JAGS ####
 
@@ -138,7 +189,7 @@ library(writexl)
 write_xlsx(tau.jags, "tau.jags.xlsx")
 
 # 3.3 PLOT OUTPUT ####
-
+## 2021 ####
 tau.jags_y1 <- tau.jags %>% filter(year == 1) %>% select(-c(year, Rhat))
 tau.jags_plot1 = ggplot(tau.jags_y1, aes(x = EPU, y=tau.hat))+
   geom_point(colour="black", shape=15, size=3)+
@@ -149,13 +200,25 @@ tau.jags_plot1 = ggplot(tau.jags_y1, aes(x = EPU, y=tau.hat))+
   theme(axis.text.x=element_text(size=12, angle = 90)) +
   theme(axis.text.y = element_text(size=12))
 tau.jags_plot1
-ggsave(tau.jags_plot1, file="tau.jags_plot1.PNG")
 
+
+## 2022 ####
+tau.jags_y2 <- tau.jags %>% filter(year == 2) %>% select(-c(year, Rhat))
+tau.jags_plot2 = ggplot(tau.jags_y2, aes(x = EPU, y=tau.hat))+
+  geom_point(colour="black", shape=15, size=3)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(EPU, ymin = LCL, ymax = UCL)) +
+  theme(axis.text.x=element_text(size=12, angle = 90)) +
+  theme(axis.text.y = element_text(size=12))
+tau.jags_plot2
 
 # COMBINE PLOTS ####
+## 2021 ####
 
 mHT.2021 <- mHT.strat.2021 %>%
-  select(EPU=ID, tau.hat:UCL) %>%
+  select(EPU, tau.hat:UCL) %>%
   mutate(model = "mHT")
 jags.2021 <- tau.jags_y1 %>%
   mutate(model = "Bayesian")
@@ -180,3 +243,38 @@ results_plot1 = ggplot(results_y1, aes(x = EPU, y=tau.hat, color=model))+
 # For palette choices: 
 #   RColorBrewer::display.brewer.all()
 results_plot1
+
+## 2022 ####
+
+mHT.2022 <- mHT.strat.2022 %>%
+  select(EPU, tau.hat:UCL) %>%
+  mutate(model = "mHT")
+jags.2022 <- tau.jags_y2 %>%
+  mutate(model = "Bayesian")
+expert.2022<- results_exp %>%
+  filter(EPU %in% jags.2022$EPU) %>%
+  select(EPU, tau.hat=y2) %>%
+  mutate(LCL = NA,
+         UCL = NA,
+         model = "None")
+results_y2 <- bind_rows(mHT.2022, jags.2022, expert.2022)
+row.names(results_y2) <- 1:nrow(results_y2)
+
+results_plot2 = ggplot(results_y2, aes(x = EPU, y=tau.hat, color=model))+
+  geom_point(shape=15, size=3, position = position_dodge(width = 0.9))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  ylab(expression(paste("Population Estimate ± 95 CI"))) +
+  geom_linerange(aes(EPU, ymin = LCL, ymax = UCL), position = position_dodge(width = 0.9)) +
+  theme(axis.text.x=element_text(size=12, angle = 90, vjust = .4)) +
+  theme(axis.text.y = element_text(size=12)) +
+  scale_colour_grey(start = 0.2, end = 0.8)
+# For palette choices: 
+#   RColorBrewer::display.brewer.all()
+results_plot2
+
+# Agreeance measures ####
+library(SimplyAgree)
+a2021 = agree_test(x = mHT.2021$tau.hat,
+                   y = jags.2021$tau.hat)
+print(a2021)

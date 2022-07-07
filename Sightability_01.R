@@ -400,7 +400,7 @@ obs.2021 <- obs.2021 %>%
     grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
     TRUE ~ "Other"
   )) %>%
-  filter(counted=="Y", survey.type=="Inventory"|survey.type=="Telemetry") %>%
+  filter(counted=="Y", survey.type=="Inventory") %>%
   select(-survey.type)
 
 # 2022
@@ -445,7 +445,7 @@ obs.2022 <- obs.2022 %>%
       grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
       TRUE ~ "Other"
     )) %>%
-  filter(counted=="Y", survey.type=="Inventory"|survey.type=="Telemetry") %>%
+  filter(counted=="Y", survey.type=="Inventory") %>%
   select(-survey.type)
 
 
@@ -560,7 +560,7 @@ obs <- bind_rows(tmp.2021, tmp.2022)
 
 # Finish eff and sampinfo
 
-eff <- bind_rows(eff.2021, eff.2022)
+eff <- bind_rows(eff.2021, eff.2022) # %>% left_join(EPU.areas, by="Unit")
 eff.max <- eff %>%
   group_by(Unit) %>%
   slice_max(area_surveyed_km) %>%
@@ -855,7 +855,7 @@ obs <- obs.all.ins %>%
 # make sure totals = sum of cows, calves, etc
 obs %>%
   filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %>%
-  view()
+  glimpse()
 # If records show up, use code below to add unclassified individuals & re-check
 obs <- obs %>%
   mutate(
