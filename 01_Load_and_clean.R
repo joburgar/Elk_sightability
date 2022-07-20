@@ -11,22 +11,42 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
-# 1.2 Modified Horowitz-Thompson Analysis ####
-## 1.2.1 LOAD DATA ####
-# dat.2016 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2016 Survey Data", range = "A2:K78") 
-# 
-# dat.2017 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2017 Survey Data", range = "A1:K83") 
-# 
-# dat.2018 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2018 Survey Data", range = "A1:K76") 
-# 
-# dat.2019 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2019 Survey Data", range = "A1:K96")
-# 
-# dat.2020 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2020 Survey Data", range = "A1:K93")
+# 1.2 Create functions ####
+name_fixer <- function(x){
+output <- case_when(
+    grepl("Rainy", x, ignore.case = TRUE) ~ "Rainy-Gray",
+    grepl("Narrows", x, ignore.case = TRUE) ~ "Tzoonie-Narrows",
+    grepl("Deserted", x, ignore.case = TRUE) ~ "Deserted-Stakawus",
+    grepl("Chehalis", x, ignore.case = TRUE) ~ "Chehalis",
+    grepl("Sechelt", x, ignore.case = TRUE) ~ "Sechelt Peninsula",
+    grepl("Homa", x, ignore.case = TRUE) ~ "Homathko",
+    grepl("Haslam", x, ignore.case = TRUE) ~ "Haslam",
+    grepl("Dani", x, ignore.case = TRUE) ~ "Powell-Daniels",
+    grepl("Quatum", x, ignore.case = TRUE) ~ "Quatam",
+    grepl("Lillooet", x, ignore.case = TRUE) ~ "Lower Lillooet",
+    grepl("Vancouver", x, ignore.case = TRUE) ~ "Vancouver",
+    grepl("Squamish", x, ignore.case = TRUE) ~ "Squamish",
+    grepl("Indian", x, ignore.case = TRUE) ~ "Indian",
+    grepl("Stave", x, ignore.case = TRUE) ~ "Stave",
+    grepl("Theo", x, ignore.case = TRUE) ~ "Theo",
+    grepl("Mcnab", x, ignore.case = TRUE) ~ "McNab",
+    grepl("Bear", x, ignore.case = TRUE) ~ "Bear",
+    TRUE ~ x
+  )
+return(output)
+}
+
+standard_survey <- function(x){
+output <- case_when(
+    grepl("incidental", x, ignore.case = TRUE) ~ "Incidental",
+    grepl("telemetry", x, ignore.case = TRUE) ~ "Telemetry",
+    grepl("transect", x, ignore.case = TRUE) ~ "Inventory",
+    grepl("inventory", x, ignore.case = TRUE) ~ "Inventory",
+    TRUE ~ "Other")
+return(output)
+}
+
+# 1.3 LOAD DATA ####
 dat.2021 <- read_excel("SurveyData_ SPRING_2022.xls", 
                        sheet = "2021 Survey Data", range = "A1:O136", 
                        col_types = c("numeric", "text", "text", 
@@ -47,45 +67,8 @@ EPU.areas <- read_csv("Effort/EPU_areas.csv",
 EPU.list <- as.character(EPU.areas$Unit)
 print(EPU.list)
 
-## 1.2.2 SAMPLE INFO ####
-
-# area.2016 <- read_csv("Effort/areas_2016.csv")
-# eff.2016 <- area.2016 %>%
-#   group_by(Unit) %>%
-#   summarise(area_surveyed = sum(Shape_Area)) %>%
-#   mutate(area_surveyed_km = area_surveyed/1000000, year = 2016)
-# 
-# area.2017 <- read_csv("Effort/areas_2017.csv") %>%
-#   # get rid of surveys that weren't counted in total
-#   filter(begin != "2017/03/14 21:06:36.055" | Unit!="Clowhom") %>%
-#   filter((begin != "2017/03/20 15:16:10.196" & begin != "2017/03/30 15:19:37.056") | Unit!="Stave") %>%
-#   filter(begin != "2017/03/27 15:12:24.072" | Unit!="Rainy-Gray") %>%
-#   filter(begin != "2017/03/30 15:19:37.056" | Unit!="Pitt")
-# eff.2017 <- area.2017 %>%
-#   group_by(Unit) %>%
-#   summarise(area_surveyed = sum(Shape_Area)) %>%
-#   mutate(area_surveyed_km = area_surveyed/1000000, year = 2017)
-# 
-# area.2018 <- read_csv("Effort/areas_2018.csv") %>%
-#   filter(begin == "2017/03/30 15:19:37.056" | Unit!="Pitt")
-# eff.2018 <- area.2018 %>%
-#   group_by(Unit) %>%
-#   summarise(area_surveyed = sum(Shape_Area)) %>%
-#   mutate(area_surveyed_km = area_surveyed/1000000, year = 2018)
-# 
-# area.2019 <- read_csv("Effort/areas_2019.csv")
-# eff.2019 <- area.2019 %>%
-#   group_by(Unit) %>%
-#   summarise(area_surveyed = sum(Shape_Area)) %>%
-#   mutate(area_surveyed_km = area_surveyed/1000000, year = 2019)
-# 
-# area.2020 <- read_csv("Effort/areas_2020.csv") %>%
-#   filter(Unit != "Skwawka" | begin != "2020/03/24 19:15:10.996") %>%
-#   filter(Unit != "Sechelt")
-# eff.2020 <- area.2020 %>%
-#   group_by(Unit) %>%
-#   summarise(area_surveyed = sum(Shape_Area)) %>%
-#   mutate(area_surveyed_km = area_surveyed/1000000, year = 2020)
+# 1.4 mHT DATA ####
+## 1.4.1 EFFORT ####
 
 area.2021 <- read_csv("Effort/areas_2021.csv")
 eff.2021 <- area.2021 %>%
@@ -102,7 +85,7 @@ eff.2022 <- area.2022 %>%
 setdiff(bind_rows(eff.2021, eff.2022)$Unit, EPU.list) # Names match
 
 
-## 1.2.3 EXPERIMENTAL DATASET ####
+## 1.4.2 SIGHTABILITY ####
 
 # clean survey types and filter out incidental observations
 # 2 options:
@@ -116,20 +99,12 @@ exp.tmp <- bind_rows(dat.2021, dat.2022) %>%
     survey.type = `Survey type`,
     voc = `% cover`,
     .keep = "unused"
-  ) %>%
-  mutate(
-    survey.type = case_when(
-      grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-      grepl("capture", survey.type, ignore.case = TRUE) ~ "Other",
-      grepl("SMR", survey.type, ignore.case = TRUE) ~ "Other",
-      grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-      grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-      TRUE ~ "Other"
-    )
-  ) %>%
-  filter(survey.type == "Telemetry" | survey.type == "Inventory")
+  )
+exp.tmp$survey.type <- standard_survey(exp.tmp$survey.type) 
+exp.tmp$subunit <- name_fixer(exp.tmp$subunit)
 
+exp.tmp <- exp.tmp %>%
+  filter(survey.type == "Telemetry" | survey.type == "Inventory")
 
 # Option 1
 exp.tmp <- exp.tmp %>%
@@ -141,9 +116,9 @@ exp.tmp <- exp.tmp %>%
                str_extract_all(`Notes:`, "15\\d.\\d\\d\\d"), sep=", "),
              str_detect(`Notes:`, "\\d\\d\\d\\d\\d") ~ as.character(
                str_extract_all(`Notes:`, "\\d\\d\\d\\d\\d"), sep=", "),
-             str_detect(`Notes:`, "2 yellow collar") ~ "Yellow, Yellow",      
-             grepl("yellow collar", `Notes:`, ignore.case = TRUE) ~ "Yellow",
-             grepl("Telemetry", `survey.type`) ~ "0",
+             str_detect(`Notes:`, "2 yellow collar") ~ "Collar, Collar",      
+             grepl("yellow collar", `Notes:`, ignore.case = TRUE) ~ "Collar",
+             grepl("Telemetry", `survey.type`) ~ "Collar",
              TRUE ~ "No Collar"
            )
   ) %>%
@@ -164,6 +139,17 @@ exp <- exp.tmp %>%
     activity = Activity
   )
 
+# Check that all EPUs in eff have sightability data in exp
+setdiff(eff.2021$Unit, exp.tmp$subunit[exp.tmp$Year==2021]) # No exp for mcnab ->
+eff.2021 <- eff.2021 %>%
+  filter(Unit != "McNab")
+
+setdiff(eff.2022$Unit, exp.tmp$subunit[exp.tmp$Year==2022]) # No exp for Brittain, Sechelt, Tzoonie ->
+eff.2022 <- eff.2022 %>%
+  filter(Unit != "Brittain",
+         Unit != "Sechelt Peninsula",
+         Unit != "Tzoonie-Narrows")
+
 # Option 2
 # exp <- exp.tmp %>%
 #   transmute(
@@ -175,205 +161,21 @@ exp <- exp.tmp %>%
 #     activity = Activity
 #   )
 
-## 1.2.4 OBSERVATIONAL DATASET ####
-#### 1.2.4.1 START OBS ####
-# 2016
-# deal w/ NAs and raghorn observations, then clean
-# dat.2016 <- dat.2016 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Raghorn = if_else(is.na(Raghorn), 0, Raghorn),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-#   )
-# obs.2016 <- dat.2016 %>%
-#   mutate(Bull = Bull+Raghorn) %>%
-#   select(!Raghorn) %>%
-#   transmute(
-#     year = 2016,
-#     stratum = 0,
-#     subunit = EPU,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     notes = `Notes:`
-#   )
-# # Get rid of incidentals/observations not counted in total
-# obs.2016 <- obs.2016 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   )) %>%
-#   filter(counted=="Y")
-# 
-# # 2017
-# dat.2017 <- dat.2017 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Raghorn = if_else(is.na(Raghorn), 0, Raghorn),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-#   )
-# obs.2017 <- dat.2017 %>%
-#   mutate(Bull = Bull+Raghorn) %>%
-#   select(!Raghorn) %>%
-#   transmute(
-#     year = 2017,
-#     stratum = 0,
-#     subunit = EPU,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     notes = `Notes:`
-#   )
-# obs.2017 <- obs.2017 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   )) %>%
-#   filter(counted=="Y")
-# 
-# # 2018
-# # unique() tells us there are no values for Raghorn or unclassified -> get rid of raghorn and make unclass = 0
-# dat.2018 <- dat.2018 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     `Unclass.` = 0
-#   )
-# obs.2018 <- dat.2018 %>%
-#   select(!Raghorn) %>%
-#   transmute(
-#     year = 2018,
-#     stratum = 0,
-#     subunit = EPU,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     notes = `Notes:`
-#   )
-# obs.2018 <- obs.2018 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   )) %>%
-#   filter(counted=="Y")
-# 
-# # 2019
-# # unique() tells us no raghorn values exist -> just delete
-# dat.2019 <- dat.2019 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-#   )
-# obs.2019 <- dat.2019 %>%
-#   select(!Raghorn) %>%
-#   transmute(
-#     year = 2019,
-#     stratum = 0,
-#     subunit = EPU,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     notes = `Notes:`
-#   )
-# obs.2019 <- obs.2019 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   )) %>%
-#   filter(counted=="Y")
-# 
-# # 2020
-# # same as 2018
-# dat.2020 <- dat.2020 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = 0
-#   )
-# obs.2020 <- dat.2020 %>%
-#   select(!Raghorn) %>%
-#   transmute(
-#     year = 2020,
-#     stratum = 0,
-#     subunit = EPU,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     notes = `Notes:`
-#   )
-# obs.2020 <- obs.2020 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   )) %>%
-#   filter(counted=="Y")
+## 1.4.3 OBSERVATIONAL DATASET ####
 
 # 2021
-dat.2021 <- dat.2021 %>%
+obs.2021 <- dat.2021 %>%
   mutate(
     Cow = if_else(is.na(Cow), 0, Cow),
     Calf = if_else(is.na(Calf), 0, Calf),
     Spike = if_else(is.na(Spike), 0, Spike),
     Bull = if_else(is.na(Bull), 0, Bull),
     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-  )
-obs.2021 <- dat.2021 %>%
+  ) %>%
   transmute(
     year = 2021,
     stratum = 0,
-    subunit = EPU,
+    subunit = name_fixer(dat.2021$EPU),
     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
     cows = Cow,
     calves = Calf,
@@ -387,36 +189,21 @@ obs.2021 <- dat.2021 %>%
     notes = `Notes:`,
     survey.type = `Survey type`
   )
-obs.2021 <- obs.2021 %>%
-  mutate(counted = case_when(
-    grepl("re-flown", notes, ignore.case = TRUE) |
-      grepl("not in total", notes, ignore.case = TRUE) |
-      grepl("not counted", notes, ignore.case = TRUE) |
-      grepl("no effort", notes, ignore.case = TRUE) |
-      grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-    TRUE ~ "Y"),
-    survey.type = case_when(
-    grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-    grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-    grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-    grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-    TRUE ~ "Other"
-  ))
+obs.2021$survey.type <- standard_survey(obs.2021$survey.type)
 
 # 2022
-dat.2022 <- dat.2022 %>%
+obs.2022 <- dat.2022 %>%
   mutate(
     Cow = if_else(is.na(Cow), 0, Cow),
     Calf = if_else(is.na(Calf), 0, Calf),
     Spike = if_else(is.na(Spike), 0, Spike),
     Bull = if_else(is.na(Bull), 0, Bull),
     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-  )
-obs.2022 <- dat.2022 %>%
+  ) %>%
   transmute(
     year = 2022,
     stratum = 0,
-    subunit = EPU,
+    subunit = name_fixer(dat.2022$EPU),
     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
     cows = Cow,
     calves = Calf,
@@ -430,154 +217,67 @@ obs.2022 <- dat.2022 %>%
     notes = `Notes:`,
     survey.type = `Survey type`
   )
-obs.2022 <- obs.2022 %>%
-  mutate(counted = case_when(
-    grepl("re-flown", notes, ignore.case = TRUE) |
-      grepl("not in total", notes, ignore.case = TRUE) |
-      grepl("not counted", notes, ignore.case = TRUE) |
-      grepl("no effort", notes, ignore.case = TRUE) |
-      grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-    TRUE ~ "Y"),
-    survey.type = case_when(
-      grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-      grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-      grepl("SMR 1", survey.type, ignore.case = TRUE) ~ "SMR 1",
-      grepl("SMR", survey.type, ignore.case = TRUE) ~ "Other",
-      grepl("inventory - capture", survey.type, ignore.case = TRUE) ~ "Capture Inventory",
-      grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-      grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-      TRUE ~ "Other"
-    ))
+obs.2022$survey.type <- standard_survey(obs.2022$survey.type)
 
 
-# bind together
-obs.all <- bind_rows(obs.2021, obs.2022) %>%
-  filter(counted=="Y", (survey.type=="Inventory" | survey.type=="Capture Inventory")) %>%
+# bind together & only keep inventory
+obs.inv <- bind_rows(obs.2021, obs.2022) %>%
+  filter(survey.type=="Inventory") %>%
   select(-survey.type)
 
-# ensure EPU names match
-setdiff(obs.all$subunit, EPU.list) # 9 names don't match EPU list names, fix below
-obs.all <- obs.all %>%
-  mutate(subunit = case_when(
-    grepl("Rainy", subunit, ignore.case = TRUE) ~ "Rainy-Gray",
-    grepl("Narrows", subunit, ignore.case = TRUE) ~ "Tzoonie-Narrows",
-    grepl("Deserted", subunit, ignore.case = TRUE) ~ "Deserted-Stakawus",
-    grepl("Cheh", subunit, ignore.case = TRUE) ~ "Chehalis",
-    grepl("Sechelt", subunit, ignore.case = TRUE) ~ "Sechelt Peninsula",
-    grepl("Homat", subunit, ignore.case = TRUE) ~ "Homathko",
-    grepl("Hasl", subunit, ignore.case = TRUE) ~ "Haslam",
-    grepl("Dani", subunit, ignore.case = TRUE) ~ "Powell-Daniels",
-    grepl("Quat", subunit, ignore.case = TRUE) ~ "Quatam",
-    grepl("Lillooet", subunit, ignore.case = TRUE) ~ "Lower Lillooet",
-    grepl("Vanc", subunit, ignore.case = TRUE) ~ "Vancouver",
-    grepl("Squam", subunit, ignore.case = TRUE) ~ "Squamish",
-    grepl("Ind", subunit, ignore.case = TRUE) ~ "Indian",
-    grepl("Stave", subunit, ignore.case = TRUE) ~ "Stave",
-    grepl("Theo", subunit, ignore.case = TRUE) ~ "Theo",
-    grepl("Mcnab", subunit, ignore.case = TRUE) ~ "McNab",
-    TRUE ~ subunit
-  ))
-
-# make sure all EPU names match
-setdiff(obs.all$subunit, EPU.list) #If returns "character(0)", all names match
-
-# Get rid of incidental observations outside each year's surveyed EPUs
-obs.all <- obs.all %>%
-  filter(total > 0) %>%
-  mutate(subunit = 
-           if_else(year == 2021 & subunit %in% eff.2021$Unit, subunit,
-                   if_else(year == 2022 & subunit %in% eff.2022$Unit, subunit,
-              "X"))) %>%
-  filter(subunit != "X")
-
-### 1.2.4.2 STRATUM FIELD ####
 
 # Create stratum ID field
-## 1. Break up obs.all by year
+## Break up obs.all by year
 
-# tmp <- obs.all %>%
-#   filter(year==2016)
-# eff.2016 <- semi_join(eff.2016, tmp, by=c("Unit"="subunit", "year"))
-# eff.2016 <- eff.2016 %>%
-#   mutate(ID = as.integer(row.names(eff.2016)))
-# tmp.2016 <- left_join(tmp, eff.2016, by=c("subunit"="Unit", "year")) %>%
-#   mutate(stratum = ID) %>%
-#   select(year:grpsize, voc:activity)
-# 
-# tmp <- obs.all %>%
-#   filter(year==2017)
-# eff.2017 <- semi_join(eff.2017, tmp, by=c("Unit"="subunit", "year"))
-# eff.2017 <- eff.2017 %>%
-#   mutate(ID = as.integer(row.names(eff.2017)))
-# tmp.2017 <- left_join(tmp, eff.2017, by=c("subunit"="Unit", "year")) %>%
-#   mutate(stratum = ID) %>%
-#   select(year:grpsize, voc:activity)
-# 
-# tmp <- obs.all %>%
-#   filter(year==2018)
-# eff.2018 <- semi_join(eff.2018, tmp, by=c("Unit"="subunit", "year"))
-# eff.2018 <- eff.2018 %>%
-#   mutate(ID = as.integer(row.names(eff.2018)))
-# tmp.2018 <- left_join(tmp, eff.2018, by=c("subunit"="Unit", "year")) %>%
-#   mutate(stratum = ID) %>%
-#   select(year:grpsize, voc:activity)
-# 
-# tmp <- obs.all %>%
-#   filter(year==2019)
-# eff.2019 <- semi_join(eff.2019, tmp, by=c("Unit"="subunit", "year"))
-# eff.2019 <- eff.2019 %>%
-#   mutate(ID = as.integer(row.names(eff.2019)))
-# tmp.2019 <- left_join(tmp, eff.2019, by=c("subunit"="Unit", "year")) %>%
-#   mutate(stratum = ID) %>%
-#   select(year:grpsize, voc:activity)
-# 
-# tmp <- obs.all %>%
-#   filter(year==2020)
-# eff.2020 <- semi_join(eff.2020, tmp, by=c("Unit"="subunit", "year"))
-# eff.2020 <- eff.2020 %>%
-#   mutate(ID = as.integer(row.names(eff.2020)))
-# tmp.2020 <- left_join(tmp, eff.2020, by=c("subunit"="Unit", "year")) %>%
-#   mutate(stratum = ID) %>%
-#   select(year:grpsize, voc:activity)
-
-tmp <- obs.all %>%
+tmp <- obs.inv %>%
   filter(year==2021)
-eff.2021 <- semi_join(eff.2021, tmp, by=c("Unit"="subunit", "year"))
-eff.2021 <- eff.2021 %>%
+eff.2021 <- semi_join(eff.2021, tmp, by=c("Unit"="subunit", "year")) %>%
   mutate(ID = as.integer(row.names(eff.2021)))
 tmp.2021 <- left_join(tmp, eff.2021, by=c("subunit"="Unit", "year")) %>%
   mutate(stratum = ID) %>%
   select(year:grpsize, voc:activity)
 
-tmp <- obs.all %>%
+tmp <- obs.inv %>%
   filter(year==2022)
-eff.2022 <- semi_join(eff.2022, tmp, by=c("Unit"="subunit", "year"))
-eff.2022 <- eff.2022 %>%
+eff.2022 <- semi_join(eff.2022, tmp, by=c("Unit"="subunit", "year")) %>%
   mutate(ID = as.integer(row.names(eff.2022)))
 tmp.2022 <- left_join(tmp, eff.2022, by=c("subunit"="Unit", "year")) %>%
   mutate(stratum = ID) %>%
   select(year:grpsize, voc:activity)
 
-## 2. Join back together
-obs <- bind_rows(tmp.2021, tmp.2022)
+## Join back together
+obs <- bind_rows(tmp.2021, tmp.2022) %>%
+  filter(!is.na(stratum))
 
 # Finish eff and sampinfo
 
-eff <- bind_rows(eff.2021, eff.2022) # %>% left_join(EPU.areas, by="Unit")
+eff <- bind_rows(eff.2021, eff.2022) %>%
+  select(-area_surveyed)
 eff.max <- eff %>%
   group_by(Unit) %>%
   slice_max(area_surveyed_km) %>%
   mutate(Nh = area_surveyed_km) %>%
   select(Unit, Nh)
 
-sampinfo <- left_join(eff, eff.max, by="Unit")
-
-sampinfo <- sampinfo %>%
+sampinfo <- left_join(eff, eff.max, by="Unit") %>%
   mutate(stratum = as.integer(ID), Nh = as.integer(Nh), 
          nh = as.integer(area_surveyed_km), year = as.integer(year)) %>%
   select(year, stratum, Nh, nh)
 
-### 1.2.4.3 FINSIH OBS ####
+# FINISH OBS
+# get rid of NAs in voc
+# add mean voc by EPU
+avg.voc <- obs %>%
+  group_by(subunit) %>%
+  summarize(mean_voc = mean(voc, na.rm=T))
+avg.voc.overall <- mean(obs$voc, na.rm=T)
+
+obs.voc <- left_join(obs, avg.voc, by="subunit") %>%
+  mutate(mean_voc = if_else(is.na(mean_voc), avg.voc.overall, mean_voc),
+         voc = if_else(is.na(voc), mean_voc, voc))
+
+obs <- obs.voc
+
 # Make all numeric fields integers
 obs <- obs %>%
   mutate(year = as.integer(year),
@@ -590,10 +290,9 @@ obs <- obs %>%
          unclass = as.integer(unclass),
          voc = as.integer(voc),
          grpsize = as.integer(grpsize))
-
-# make sure totals = sum of cows, calves, etc
 obs %>%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %>%
+# make sure totals = sum of cows, calves, etc
+  filter(total != (cows+calves+spikes+bulls+unclass)) %>%
   glimpse()
 # If records show up, use code below to add unclassified individuals & re-check
 obs <- obs %>%
@@ -602,311 +301,26 @@ obs <- obs %>%
       total > (cows+calves+spikes+bulls+unclass), total-(cows+calves+spikes+bulls),
       unclass),
     total = (cows+calves+spikes+bulls+unclass))
-
 obs %>%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %>%
+  filter(total != (cows+calves+spikes+bulls+unclass)) %>%
   glimpse() # all good now
 
-
-# Make sure all stratum listed in obs are listed in sampinfo for each year
-# setdiff(sampinfo$stratum[sampinfo$year==2016], unique(obs$stratum[obs$year==2016]))
-# setdiff(sampinfo$stratum[sampinfo$year==2017], unique(obs$stratum[obs$year==2017]))
-# setdiff(sampinfo$stratum[sampinfo$year==2018], unique(obs$stratum[obs$year==2018]))
-# setdiff(sampinfo$stratum[sampinfo$year==2019], unique(obs$stratum[obs$year==2019]))
-# setdiff(sampinfo$stratum[sampinfo$year==2020], unique(obs$stratum[obs$year==2020]))
-setdiff(sampinfo$stratum[sampinfo$year==2021], unique(obs$stratum[obs$year==2021]))
-setdiff(sampinfo$stratum[sampinfo$year==2022], unique(obs$stratum[obs$year==2022]))
-
-## 1.2.5 SAVE DATA ####
+## 1.4.4 SAVE mHT DATA ####
 save(list = c("eff", "exp", "obs", "sampinfo", "eff.2021", "eff.2022"), file = "mHT_input.Rdata")
-# rm(list = ls())
 
-# 1.3 Bayesian Analsysis ####
-
-## 1.3.1 LOAD DATA ####
-
-# dat.2021 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2021 Survey Data", range = "A1:O136", 
-#                        col_types = c("numeric", "text", "text", 
-#                                      "numeric", "numeric", "numeric", 
-#                                      "skip", "numeric", "numeric", "numeric", 
-#                                      "text", "text", "numeric", "text", 
-#                                      "text"))
-# dat.2022 <- read_excel("SurveyData_ SPRING_2022.xls", 
-#                        sheet = "2022 Survey Data", range = "A1:P102", 
-#                        col_types = c("numeric", "text", "text", 
-#                                      "numeric", "numeric", "numeric", 
-#                                      "skip", "numeric", "numeric", "numeric", 
-#                                      "skip", "text", "text", "numeric", 
-#                                      "text", "text"))
-# EPU.areas <- read_csv("Effort/EPU_areas.csv",
-#                       col_types = cols(OID = col_skip(), Shape_Leng = col_skip()))
-
-# Create list of EPUs
-# EPU.list <- as.character(EPU.areas$Unit)
-# print(EPU.list)
-
-## 1.3.2 CLEAN DATA ####
-### 1.3.2.1 EFFORT DATA ####
-# take effort data from summary pages
-
-min.count <- read_excel("SurveyData_ SPRING_2022.xls", 
-                        sheet = "2022 Summary", range = "A2:O29") %>%
-  select(EPU = `...1`, Min_2021 = `Min 2021`, Min_2022 = `Min 2022`)
-
-# get rid of letters in count columns and classify as integer fields
-
-min.count$Min_2021 <- min.count$Min_2021 %>%
-  str_remove_all("[:alpha:]") %>% 
-  str_remove_all("[:punct:]") %>%
-  str_remove_all("[:symbol:]") %>%
-  as.integer(min.count$Min_2021)
-
-min.count$Min_2022 <- min.count$Min_2022 %>%
-  str_remove_all("[:alpha:]") %>% 
-  str_remove_all("[:punct:]") %>%
-  str_remove_all("[:symbol:]") %>%
-  as.integer(min.count$Min_2022)
-
-# make names match
-setdiff(min.count$EPU, EPU.list) # if names show up, alter code below to rectify
-# min.count <- min.count %>%
-#   mutate(EPU = case_when(
-#     grepl("Chehalis", EPU, ignore.case = TRUE) ~ "Chehalis",
-#     grepl("Sechelt", EPU, ignore.case = TRUE) ~ "Sechelt Peninsula",
-#     grepl("Haslam", EPU, ignore.case = TRUE) ~ "Haslam",
-#     grepl("Dani", EPU, ignore.case = TRUE) ~ "Powell-Daniels",
-#     grepl("Theo", EPU, ignore.case = TRUE) ~ "Theo",
-#     TRUE ~ EPU))
-# setdiff(min.count$EPU, EPU.list) # good now
-
-eff <- min.count %>%
-  mutate(surveyed_2021 = if_else(is.na(Min_2021)|Min_2021==0, F, T),
-         surveyed_2022 = if_else(is.na(Min_2022)|Min_2022==0, F, T)) %>%
-  filter(surveyed_2021 == T | surveyed_2022 == T) %>%
-  select(EPU, surveyed_2021, surveyed_2022)
-summary(eff)
-
-# make sure numbers are as expected
-# add ID# to each EPU
-eff$ID <- as.double(row.names(eff))
-eff %>% select(EPU, ID, surveyed_2021, surveyed_2022)
-
-### 1.3.2.2 OBSERVATION DATA ####
-
-# 2022
-# dat.2022 <- dat.2022 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-#   )
-# obs.2022 <- dat.2022 %>%
-#   transmute(
-#     year = 2022,
-#     date = as.Date(strptime(dat.2022$Date, "%b %d %Y")),
-#     stratum = EPU,
-#     subunit = 1,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     voc = `% cover`,
-#     habitat = Habitat,
-#     activity = Activity,
-#     survey.type = `Survey type`,
-#     notes = `Notes:`
-#   )
-# obs.2022 <- obs.2022 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   ),
-#   survey.type = case_when(
-#     grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-#     grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-#     grepl("SMR", survey.type, ignore.case = TRUE) ~ "SMR",
-#     grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-#     grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-#     TRUE ~ "Other"
-#   )) %>%
-#   filter(counted=="Y", survey.type=="Inventory")
-# 
-# 
-# # 2021
-# dat.2021 <- dat.2021 %>%
-#   mutate(
-#     Cow = if_else(is.na(Cow), 0, Cow),
-#     Calf = if_else(is.na(Calf), 0, Calf),
-#     Spike = if_else(is.na(Spike), 0, Spike),
-#     Bull = if_else(is.na(Bull), 0, Bull),
-#     Unclass. = if_else(is.na(Unclass.), 0, Unclass.)
-#   )
-# obs.2021 <- dat.2021 %>%
-#   transmute(
-#     year = 2021,
-#     date = as.Date(strptime(dat.2021$Date, "%b %d %Y")),
-#     stratum = EPU,
-#     subunit = 1,
-#     total = if_else(is.na(`Elk Obs.`), 0, `Elk Obs.`),
-#     cows = Cow,
-#     calves = Calf,
-#     spikes = Spike,
-#     bulls = Bull,
-#     unclass = `Unclass.`,
-#     grpsize = `Elk Obs.`,
-#     voc = `% cover`,
-#     habitat = Habitat,
-#     activity = Activity,
-#     survey.type = `Survey type`,
-#     notes = `Notes:`
-#   )
-# obs.2021 <- obs.2021 %>%
-#   mutate(counted = case_when(
-#     grepl("re-flown", notes, ignore.case = TRUE) |
-#       grepl("not in total", notes, ignore.case = TRUE) |
-#       grepl("not counted", notes, ignore.case = TRUE) |
-#       grepl("no effort", notes, ignore.case = TRUE) |
-#       grepl("incidental", notes, ignore.case = TRUE) ~ "N",
-#     TRUE ~ "Y"
-#   ),
-#     survey.type = case_when(
-#       grepl("incidental", survey.type, ignore.case = TRUE) ~ "Incidental",
-#       grepl("telemetry", survey.type, ignore.case = TRUE) ~ "Telemetry",
-#       grepl("transect", survey.type, ignore.case = TRUE) ~ "Inventory",
-#       grepl("inventory", survey.type, ignore.case = TRUE) ~ "Inventory",
-#       TRUE ~ "Other"
-#     )) %>%
-#   filter(counted=="Y", survey.type=="Inventory")
-# 
-# # bind together
-obs.all <- bind_rows(obs.2022, obs.2021) %>%
-  filter(survey.type == "Inventory" | survey.type == "SMR 1")
-
-# ensure EPU names match
-setdiff(obs.all$subunit, EPU.list) # 11 names don't match EPU list names, fix below
-obs.all <- obs.all %>%
-  mutate(subunit = case_when(
-    grepl("Rainy", subunit, ignore.case = TRUE) ~ "Rainy-Gray",
-    grepl("Narrows", subunit, ignore.case = TRUE) ~ "Tzoonie-Narrows",
-    grepl("Deserted", subunit, ignore.case = TRUE) ~ "Deserted-Stakawus",
-    grepl("Chehalis", subunit, ignore.case = TRUE) ~ "Chehalis",
-    grepl("Sechelt", subunit, ignore.case = TRUE) ~ "Sechelt Peninsula",
-    grepl("Homa", subunit, ignore.case = TRUE) ~ "Homathko",
-    grepl("Haslam", subunit, ignore.case = TRUE) ~ "Haslam",
-    grepl("Dani", subunit, ignore.case = TRUE) ~ "Powell-Daniels",
-    grepl("Quatum", subunit, ignore.case = TRUE) ~ "Quatam",
-    grepl("Lillooet", subunit, ignore.case = TRUE) ~ "Lower Lillooet",
-    grepl("Vancouver", subunit, ignore.case = TRUE) ~ "Vancouver",
-    grepl("Squamish", subunit, ignore.case = TRUE) ~ "Squamish",
-    grepl("Indian", subunit, ignore.case = TRUE) ~ "Indian",
-    grepl("Stave", subunit, ignore.case = TRUE) ~ "Stave",
-    grepl("Theo", subunit, ignore.case = TRUE) ~ "Theo",
-    grepl("Mcnab", subunit, ignore.case = TRUE) ~ "McNab",
-    grepl("Bear", subunit, ignore.case = TRUE) ~ "Bear",
-    TRUE ~ subunit
-  ))
-
-# make sure all EPU names match
-setdiff(obs.all$subunit, EPU.list) #If returns "character(0)", all names match
+# 1.5 Bayesian Data ####
+## Main differences between bayesian and mHT datasets:
+## 1. VOC is a decimal in Bayesian
+## 2. subunit is numbered like stratum in Bayesian
+## 3. 
 
 
-# Get rid of incidental observations outside each year's surveyed EPUs
-obs.all.ins <- left_join(obs.all, eff, by=c("subunit"="EPU")) %>%
-  mutate(stratum = if_else(
-    year == 2022 & surveyed_2022 == T, subunit,
-    if_else(
-      year == 2021 & surveyed_2021 == T, subunit,
-      "X"))) %>%
-  filter(stratum != "X")
-
-
-# Set numeric fields 
-obs <- obs.all.ins %>%
-  mutate(year = as.integer(year),
-         stratum = stratum,
-         total = as.integer(total),
-         cows = as.integer(cows),
-         calves = as.integer(calves),
-         spikes = as.integer(spikes),
-         bulls = as.integer(bulls),
-         unclass = as.integer(unclass),
-         voc = as.double(voc),
-         grpsize = as.integer(grpsize))
-
-# make sure totals = sum of cows, calves, etc
-obs %>%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass)) %>%
-  glimpse()
-# If records show up, use code below to add unclassified individuals & re-check
-obs <- obs %>%
-  mutate(
-    unclass = if_else(
-      total <= (cows+calves+spikes+bulls+unclass), unclass,
-      total-((cows+calves+spikes+bulls))),
-    total = (cows+calves+spikes+bulls+unclass)
-  )
-obs %>%
-  filter(obs$total != (obs$cows+obs$calves+obs$spikes+obs$bulls+obs$unclass))
-# resulting table should have 0 rows
-
-# get rid of NAs in voc
-# add mean voc by habitat
-avg.voc <- obs %>%
-  group_by(habitat) %>%
-  summarize(mean_voc = mean(voc, na.rm=T))
-avg.voc.overall <- mean(obs$voc, na.rm=T)
-
-obs.voc <- left_join(obs, avg.voc, by="habitat") %>%
-  mutate(mean_voc = if_else(is.na(mean_voc), avg.voc.overall, mean_voc),
-         voc = if_else(is.na(voc), mean_voc, voc))
-
-obs <- obs.voc
-
-### 1.3.2.3 SIGHTABILITY DATA ####
-# exp.tmp <- obs %>%
-#   filter(survey.type == "Telemetry" | survey.type == "Inventory")
-# # only keep observations of collared elk
-# exp.tmp <- exp.tmp %>%
-#   mutate(collar =
-#            case_when(
-#              grepl("no collar", notes, ignore.case = TRUE) ~ "No Collar",
-#              grepl("collar in group", notes, ignore.case = TRUE) ~ "Yes",
-#              grepl("collars in group", notes, ignore.case = TRUE) ~ "Yes, Yes",
-#              grepl("dart", notes, ignore.case = TRUE) ~ "No Collar",
-#              str_detect(notes, "15\\d.\\d\\d\\d") ~ as.character(
-#                str_extract_all(notes, "15\\d.\\d\\d\\d"), sep=", "),
-#              str_detect(notes, "\\d\\d\\d\\d\\d") ~ as.character(
-#                str_extract_all(notes, "\\d\\d\\d\\d\\d"), sep=", "),
-#              str_detect(notes, "2 yellow collar") ~ "Yellow, Yellow",      
-#              grepl("yellow collar", notes, ignore.case = TRUE) ~ "Yellow",
-#              
-#              grepl("Telemetry", `survey.type`) ~ "Yes",
-#              
-#              TRUE ~ "No Collar"
-#            )
-#   ) %>%
-#   filter(collar != "No Collar") %>%
-#   arrange(collar)
-# 
-# # duplicate observations with 2 collars, then clean
-# exp.tmp <- rbind(exp.tmp, exp.tmp[rep(str_detect(exp.tmp$collar, ","), 1),])
-
-## 1.3.3 SIGHT DAT ####
+## 1.5.1 SIGHT DAT ####
 
 # Sightability survey data:  64 records
-# w = habitat indicator ()
+# s = habitat indicator ()
 # x = visual obstrcution measurements associated with the test trial data used to develop the sightability model
-# y = activity indicator (0 if bedded, 1 if standing)
+# a = activity indicator (0 if bedded, 1 if standing/moving)
 # z = detection indicator (1 if the group was observed, 0 otherwise)
 
 sight.dat <- exp.tmp %>%
@@ -973,16 +387,14 @@ sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
 
 # non-augmented data
 
- # exclude telemetry?
 oper.dat <- obs %>%
   transmute(x = round(as.double(voc*.01), 2),
             ym1 = total-1,
-            h = ID,
+            h = as.double(stratum),
             q = 1,
-#           z = if_else(survey.type == "Telemetry", 0, 1)
             z = 1,
             yr = if_else(year == 2021, 1, 2),
-            subunits = ID) %>%
+            subunits = as.double(stratum)) %>%
   glimpse()
 
 # augmented data
