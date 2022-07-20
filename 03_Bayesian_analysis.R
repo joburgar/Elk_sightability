@@ -4,7 +4,7 @@
 setwd("C:/Users/TBRUSH/R/Elk_sightability/input")
 load("jags_input.Rdata")
 
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable", "statip", "R2jags")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable", "statip", "R2jags")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -16,12 +16,12 @@ lapply(list.of.packages, require, character.only = TRUE)
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
 # Parameters monitored
-params <- c("bo", "bvoc", "tau.nh1y1", "tau.nh2y1", "tau.nh3y1", "tau.nh4y1", "tau.nh6y1", "tau.nh7y1", "tau.nh8y1", "tau.nh9y1", "tau.nh10y1", "tau.nh11y1", "tau.nh16y1", "tau.nh17y1", "tau.nh19y1", "tau.nh21y1", "tau.nh22y1", "tau.nh23y1", "tau.nh1y2", "tau.nh2y2", "tau.nh4y2", "tau.nh5y2", "tau.nh6y2", "tau.nh12y2", "tau.nh13y2", "tau.nh14y2", "tau.nh15y2", "tau.nh18y2")
+params <- c("bo", "bvoc", "tau.nh1y1", "tau.nh2y1", "tau.nh3y1", "tau.nh4y1", "tau.nh6y1", "tau.nh9y1", "tau.nh10y1", "tau.nh11y1", "tau.nh16y1", "tau.nh17y1", "tau.nh19y1", "tau.nh21y1", "tau.nh22y1", "tau.nh23y1", "tau.nh2y2", "tau.nh4y2", "tau.nh5y2", "tau.nh6y2", "tau.nh12y2", "tau.nh13y2", "tau.nh14y2", "tau.nh15y2", "tau.nh18y2", "tau.nh20y2")
 
 # MCMC settings
-ni <- 40000 # build to 40000
+ni <- 1000 # build to 40000
 nt <- 2     # 50% thinning rate (discard every 2nd iteration)
-nb <- 20000 # build to 20000
+nb <- 500
 nc <- 3
 
 # Bundle data
@@ -39,6 +39,7 @@ setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 save("jags_output",file="jags_output.RData")
 save("eff",file="jags_effort.RData")
 
+rm(list = ls())
 # 
 # tau.Sechelt50_jags_sub <- tau.Sechelt50_jags %>% filter(mean <300) # only 15 / 46 with pop estimates < 300
 # tau.Sechelt50_jags_sub_simsplot = ggplot(tau.Sechelt50_jags_sub, aes(x = reorder(row.names(tau.Sechelt50_jags_sub),mean), y=mean))+
@@ -46,7 +47,7 @@ save("eff",file="jags_effort.RData")
 #   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
 #         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
 #   ylab(expression(paste("Population Estimate ± 95 CI"))) +
-#   geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = LCL, ymax = UCL)) +
+#   geom_linerange(aes(row.names(tau.Sechelt50_jags_sub), ymin = lcl, ymax = ucl)) +
 #   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
 #   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
 #   theme(axis.text.y = element_text(size=14))
@@ -74,7 +75,7 @@ save("eff",file="jags_effort.RData")
 #   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
 #         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
 #   ylab(expression(paste("Population Estimate ± 95 CI"))) +
-#   geom_linerange(aes(simID, ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+#   geom_linerange(aes(simID, ymin = lcl, ymax = ucl), position=position_dodge(width=1)) +
 #   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
 #   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
 #   theme(axis.text.y = element_text(size=14))
@@ -88,7 +89,7 @@ save("eff",file="jags_effort.RData")
 #   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
 #         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
 #   ylab(expression(paste("Population Estimate ± 95 CI"))) +
-#   geom_linerange(aes(rownames(Sechelt50), ymin = LCL, ymax = UCL), position=position_dodge(width=1)) +
+#   geom_linerange(aes(rownames(Sechelt50), ymin = lcl, ymax = ucl), position=position_dodge(width=1)) +
 #   geom_hline(yintercept=pop.size, linetype="dashed", color = "red") +
 #   theme(axis.title.x=element_blank(), axis.text.x=element_blank()) +
 #   theme(axis.text.y = element_text(size=14))+
