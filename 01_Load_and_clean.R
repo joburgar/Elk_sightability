@@ -67,24 +67,8 @@ EPU.list <- as.character(EPU.areas$Unit)
 print(EPU.list)
 
 # 1.4 mHT DATA ####
-## 1.4.1 EFFORT ####
 
-area.2021 <- read_csv("Effort/areas_2021_INV.csv")
-eff.2021 <- area.2021 %>%
-  group_by(Unit) %>%
-  summarise(area_surveyed = sum(Shape_Area)) %>%
-  mutate(area_surveyed_km = area_surveyed/1000000, year = 2021)
-
-area.2022 <- read_csv("Effort/areas_2022_INV.csv")
-eff.2022 <- area.2022 %>%
-  group_by(Unit) %>%
-  summarise(area_surveyed = sum(Shape_Area)) %>%
-  mutate(area_surveyed_km = area_surveyed/1000000, year = 2022)
-
-setdiff(bind_rows(eff.2021, eff.2022)$Unit, EPU.list) # Names match
-
-
-## 1.4.2 SIGHTABILITY ####
+## 1.4.1 SIGHTABILITY ####
 
 # clean survey types and filter out incidental observations
 # 2 options:
@@ -138,15 +122,41 @@ exp <- exp.tmp %>%
     activity = Activity
   )
 
+## 1.4.2 EFFORT ####
+
+area.2021 <- read_csv("Effort/areas_2021_INV.csv")
+eff.2021 <- area.2021 %>%
+  group_by(Unit) %>%
+  summarise(area_surveyed = sum(Shape_Area)) %>%
+  mutate(area_surveyed_km = area_surveyed/1000000, year = 2021)
+
+area.2022 <- read_csv("Effort/areas_2022_INV.csv")
+eff.2022 <- area.2022 %>%
+  group_by(Unit) %>%
+  summarise(area_surveyed = sum(Shape_Area)) %>%
+  mutate(area_surveyed_km = area_surveyed/1000000, year = 2022)
+
+setdiff(bind_rows(eff.2021, eff.2022)$Unit, EPU.list) # Names match
+
 # Check that all EPUs in eff have sightability data in exp
 setdiff(eff.2021$Unit, exp.tmp$subunit[exp.tmp$Year==2021]) # No exp for mcnab ->
 eff.2021 <- eff.2021 %>%
   filter(Unit != "McNab")
 
-setdiff(eff.2022$Unit, exp.tmp$subunit[exp.tmp$Year==2022]) # No exp for Brittain, Sechelt, Tzoonie ->
+setdiff(eff.2022$Unit, exp.tmp$subunit[exp.tmp$Year==2022]) # No exp for Brittain, Tzoonie ->
 eff.2022 <- eff.2022 %>%
   filter(Unit != "Brittain",
          Unit != "Tzoonie-Narrows")
+
+eff <- bind_rows(eff.2021, eff.2022)
+eff$ID <- row.names(eff)
+
+sampinfo <- left_join(eff, EPU.areas, by="Unit") %>%
+  mutate(stratum = as.integer(ID), 
+         Nh = as.integer(LIW_Cap_sqkm), 
+         nh = as.integer(if_else(area_surveyed_km > LIW_Cap_sqkm, LIW_Cap_sqkm, area_surveyed_km)), 
+         year = as.integer(year)) %>%
+  select(year, stratum, Nh, nh)
 
 # Option 2
 # exp <- exp.tmp %>%
@@ -225,50 +235,13 @@ obs.inv <- bind_rows(obs.2021, obs.2022) %>%
   filter(survey.type=="Inventory") %>%
   select(-survey.type)
 
-
-# Create stratum ID field
-## Break up obs.all by year
-
-tmp <- obs.inv %>%
-  filter(year==2021)
-eff.2021 <- semi_join(eff.2021, tmp, by=c("Unit"="subunit", "year")) %>%
-  mutate(ID = as.integer(row.names(eff.2021)))
-tmp.2021 <- left_join(tmp, eff.2021, by=c("subunit"="Unit", "year")) %>%
-  mutate(stratum = ID) %>%
-  select(year:grpsize, voc:activity)
-
-tmp <- obs.inv %>%
-  filter(year==2022)
-eff.2022 <- semi_join(eff.2022, tmp, by=c("Unit"="subunit", "year")) %>%
-  mutate(ID = as.integer(row.names(eff.2022)))
-tmp.2022 <- left_join(tmp, eff.2022, by=c("subunit"="Unit", "year")) %>%
-  mutate(stratum = ID) %>%
-  select(year:grpsize, voc:activity)
-
-## Join back together
-obs <- bind_rows(tmp.2021, tmp.2022) %>%
+# stratum field
+obs <- left_join(obs.inv, eff %>% select(Unit, ID), by=c("subunit"="Unit")) %>%
+  mutate(stratum = as.integer(ID), .keep = "unused") %>%
   filter(!is.na(stratum))
 
-# Finish eff and sampinfo
-
-eff <- bind_rows(eff.2021, eff.2022) %>%
-  select(-area_surveyed)
-# eff.max <- eff %>%
-#   group_by(Unit) %>%
-#   slice_max(area_surveyed_km) %>%
-#   mutate(Nh = area_surveyed_km) %>%
-#   select(Unit, Nh)
-
-sampinfo <- left_join(eff, EPU.areas, by="Unit") %>%
-  mutate(stratum = as.integer(ID), 
-         Nh = as.integer(LIW_Cap_sqkm), 
-         nh = as.integer(if_else(area_surveyed_km > LIW_Cap_sqkm, LIW_Cap_sqkm, area_surveyed_km)), 
-         year = as.integer(year)) %>%
-  select(year, stratum, Nh, nh)
-
-# FINISH OBS
 # get rid of NAs in voc
-# add mean voc by EPU
+## add mean voc by EPU
 avg.voc <- obs %>%
   group_by(subunit) %>%
   summarize(mean_voc = mean(voc, na.rm=T))
@@ -311,11 +284,11 @@ obs %>%
 ## 1.4.4 SAVE mHT DATA ####
 save(list = c("eff", "exp", "obs", "sampinfo"), file = "mHT_input.Rdata")
 
-# 1.5 Bayesian Data ####
+# 1.5 BAYESIAN DATA ####
+
 ## Main differences between bayesian and mHT datasets:
 ## 1. VOC is a decimal in Bayesian
 ## 2. subunit is numbered like stratum in Bayesian
-## 3. 
 
 
 ## 1.5.1 SIGHT DAT ####

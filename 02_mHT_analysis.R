@@ -66,18 +66,18 @@ mHT.2021 <- as.data.frame(tau.hats) %>%
 # 2022
 tau.hats <- matrix(NA, length(eff$ID[eff$year == 2022]), 7)
 rownames(tau.hats) <- c(eff$Unit[eff$year == 2022])
-for (i in 1:length(eff$ID[eff$year == 2022])) {
+for (i in (length(eff$ID[eff$year == 2021])+1):length(eff$ID)) {
   tempsamp <- sampinfo[sampinfo$year == 2022 & sampinfo$stratum == i,]
   tempobs <- obs[obs$year == 2022 & obs$stratum == i,]
   temp <-
     Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
               alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 10000)
+              nboot = 1000)
   temp.summary <- summary(temp)
-  tau.hats[i, 1:5] <- temp$est
-  tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
-  tau.hats[i, 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
+  tau.hats[(i-length(eff$ID[eff$year == 2021])), 1:5] <- temp$est
+  tau.hats[(i-length(eff$ID[eff$year == 2021])), 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
+  tau.hats[(i-length(eff$ID[eff$year == 2021])), 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
 }
 colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
 tau.hats <- round(tau.hats, 0)
@@ -101,5 +101,5 @@ save(
   file = "mHT_output.RData"
 )
 
-#rm(list = ls())
+rm(list = ls())
 
