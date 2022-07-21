@@ -46,7 +46,7 @@ for (i in 1:length(eff$ID[eff$year == 2021])) {
     Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
               alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 1000)
+              nboot = 10000)
   temp.summary <- summary(temp)
   tau.hats[i, 1:5] <- temp$est
   tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
@@ -73,7 +73,7 @@ for (i in 1:length(eff$ID[eff$year == 2022])) {
     Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
               alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 1000)
+              nboot = 10000)
   temp.summary <- summary(temp)
   tau.hats[i, 1:5] <- temp$est
   tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
@@ -96,7 +96,7 @@ setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 save(
   list = c(
     "mHT.2021",
-    "mHT.2022",
+    "mHT.2022"
   ),
   file = "mHT_output.RData"
 )

@@ -61,8 +61,7 @@ dat.2022 <- read_excel("SurveyData_ SPRING_2022.xls",
                                      "skip", "numeric", "numeric", "numeric", 
                                      "skip", "text", "text", "numeric", 
                                      "text", "text"))
-EPU.areas <- read_csv("Effort/EPU_areas.csv", 
-                      col_types = cols(OID = col_skip(), Shape_Leng = col_skip()))
+EPU.areas <- read_csv("Effort/EPU_areas.csv")
 
 EPU.list <- as.character(EPU.areas$Unit)
 print(EPU.list)
@@ -70,13 +69,13 @@ print(EPU.list)
 # 1.4 mHT DATA ####
 ## 1.4.1 EFFORT ####
 
-area.2021 <- read_csv("Effort/areas_2021.csv")
+area.2021 <- read_csv("Effort/areas_2021_INV.csv")
 eff.2021 <- area.2021 %>%
   group_by(Unit) %>%
   summarise(area_surveyed = sum(Shape_Area)) %>%
   mutate(area_surveyed_km = area_surveyed/1000000, year = 2021)
 
-area.2022 <- read_csv("Effort/areas_2022.csv")
+area.2022 <- read_csv("Effort/areas_2022_INV.csv")
 eff.2022 <- area.2022 %>%
   group_by(Unit) %>%
   summarise(area_surveyed = sum(Shape_Area)) %>%
@@ -147,7 +146,6 @@ eff.2021 <- eff.2021 %>%
 setdiff(eff.2022$Unit, exp.tmp$subunit[exp.tmp$Year==2022]) # No exp for Brittain, Sechelt, Tzoonie ->
 eff.2022 <- eff.2022 %>%
   filter(Unit != "Brittain",
-         Unit != "Sechelt Peninsula",
          Unit != "Tzoonie-Narrows")
 
 # Option 2
@@ -187,7 +185,8 @@ obs.2021 <- dat.2021 %>%
     habitat = Habitat,
     activity = Activity,
     notes = `Notes:`,
-    survey.type = `Survey type`
+    survey.type = `Survey type`,
+    date = Date
   )
 obs.2021$survey.type <- standard_survey(obs.2021$survey.type)
 
@@ -215,7 +214,8 @@ obs.2022 <- dat.2022 %>%
     habitat = Habitat,
     activity = Activity,
     notes = `Notes:`,
-    survey.type = `Survey type`
+    survey.type = `Survey type`,
+    date = Date
   )
 obs.2022$survey.type <- standard_survey(obs.2022$survey.type)
 
@@ -253,15 +253,17 @@ obs <- bind_rows(tmp.2021, tmp.2022) %>%
 
 eff <- bind_rows(eff.2021, eff.2022) %>%
   select(-area_surveyed)
-eff.max <- eff %>%
-  group_by(Unit) %>%
-  slice_max(area_surveyed_km) %>%
-  mutate(Nh = area_surveyed_km) %>%
-  select(Unit, Nh)
+# eff.max <- eff %>%
+#   group_by(Unit) %>%
+#   slice_max(area_surveyed_km) %>%
+#   mutate(Nh = area_surveyed_km) %>%
+#   select(Unit, Nh)
 
-sampinfo <- left_join(eff, eff.max, by="Unit") %>%
-  mutate(stratum = as.integer(ID), Nh = as.integer(Nh), 
-         nh = as.integer(area_surveyed_km), year = as.integer(year)) %>%
+sampinfo <- left_join(eff, EPU.areas, by="Unit") %>%
+  mutate(stratum = as.integer(ID), 
+         Nh = as.integer(LIW_Cap_sqkm), 
+         nh = as.integer(if_else(area_surveyed_km > LIW_Cap_sqkm, LIW_Cap_sqkm, area_surveyed_km)), 
+         year = as.integer(year)) %>%
   select(year, stratum, Nh, nh)
 
 # FINISH OBS
