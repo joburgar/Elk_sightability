@@ -35,166 +35,18 @@ lapply(list.of.packages, require, character.only = TRUE)
 setwd("C:/Users/TBRUSH/R/Elk_sightability/input")
 load("mHT_input.Rdata")
 
-# # 2.1 - 2016 ####
-#
-# # All data
-# est.2016 <- Sight.Est(observed ~ 1, odat = subset(obs,year == 2016), sdat = exp,
-#                       sampinfo = subset(sampinfo, year == 2016))
-# results.all.2016 <-summary(est.2016)
-#
-# # By strata
-# tau.hats <- matrix(NA, length(eff.2016$ID), 7)
-# rownames(tau.hats) <- c(eff.2016$Unit)
-# for(i in 1:length(eff.2016$ID)){
-#   tempsamp <- sampinfo[sampinfo$year==2016 & sampinfo$stratum==i, ]
-#   tempobs <- obs[obs$year == 2016 & obs$stratum == i, ]
-#   temp <- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp)
-#   temp.summary <- summary(temp)
-#   tau.hats[i,1:5] <- temp$est
-#   tau.hats[i,6] <- as.numeric(gsub(",","",temp.summary$lcl))
-#   tau.hats[i,7] <- as.numeric(gsub(",","",temp.summary$ucl))
-# }
-# colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-# tau.hats<-round(tau.hats, 0)
-# results.2016 <- print(format(tau.hats, big.mark = ","), justify = "left", quote = FALSE)
-# results.2016 <- as.data.frame(tau.hats) %>%
-#   select(tau.hat, lcl:ucl, everything())
-#
-# # 2.2 - 2017 ####
-#
-# # All data
-# est.2017 <- Sight.Est(observed ~ 1, odat = subset(obs,year == 2017), sdat = exp,
-#                       sampinfo = subset(sampinfo, year == 2017))
-# results.all.2017 <-summary(est.2017)
-#
-# # By strata
-# tau.hats <- matrix(NA, length(eff.2017$ID), 7)
-# rownames(tau.hats) <- c(eff.2017$Unit)
-# for(i in 1:length(eff.2017$ID)){
-#   tempsamp <- sampinfo[sampinfo$year==2017 & sampinfo$stratum==i, ]
-#   tempobs <- obs[obs$year == 2017 & obs$stratum == i, ]
-#   temp <- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp)
-#   temp.summary <- summary(temp)
-#   tau.hats[i,1:5] <- temp$est
-#   tau.hats[i,6] <- as.numeric(gsub(",","",temp.summary$lcl))
-#   tau.hats[i,7] <- as.numeric(gsub(",","",temp.summary$ucl))
-# }
-# colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-# tau.hats<-round(tau.hats, 0)
-# results.2017 <- print(format(tau.hats, big.mark = ","), justify = "left", quote = FALSE)
-# results.2017 <- as.data.frame(tau.hats) %>%
-#   select(tau.hat, lcl:ucl, everything())
-#
-#
-# # 2.3 - 2018 ####
-#
-# # All data
-# est.2018 <- Sight.Est(observed ~ 1, odat = subset(obs,year == 2018), sdat = exp,
-#                       sampinfo = subset(sampinfo, year == 2018))
-# results.all.2018 <-summary(est.2018)
-#
-# # By strata
-# tau.hats <- matrix(NA, length(eff.2018$ID), 7)
-# rownames(tau.hats) <- c(eff.2018$Unit)
-# for(i in 1:length(eff.2018$ID)){
-#   tempsamp <- sampinfo[sampinfo$year==2018 & sampinfo$stratum==i, ]
-#   tempobs <- obs[obs$year == 2018 & obs$stratum == i, ]
-#   temp <- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp)
-#   temp.summary <- summary(temp)
-#   tau.hats[i,1:5] <- temp$est
-#   tau.hats[i,6] <- as.numeric(gsub(",","",temp.summary$lcl))
-#   tau.hats[i,7] <- as.numeric(gsub(",","",temp.summary$ucl))
-# }
-# colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-# tau.hats<-round(tau.hats, 0)
-# results.2018 <- print(format(tau.hats, big.mark = ","), justify = "left", quote = FALSE)
-# results.2018 <- as.data.frame(tau.hats) %>%
-#   select(tau.hat, lcl:ucl, everything())
-#
-#
-# # 2.4 - 2019 ####
-# # Keep in mind had to remove observations b/c lost effort data for Mar 29
-# # All data
-# est.2019 <- Sight.Est(observed ~ 1, odat = subset(obs,year == 2019), sdat = exp,
-#                       sampinfo = subset(sampinfo, year == 2019))
-# results.all.2019 <-summary(est.2019)
-#
-# # By strata
-# tau.hats <- matrix(NA, length(eff.2019$ID), 7)
-# rownames(tau.hats) <- c(eff.2019$Unit)
-# for(i in 1:length(eff.2019$ID)){
-#   tempsamp <- sampinfo[sampinfo$year==2019 & sampinfo$stratum==i, ]
-#   tempobs <- obs[obs$year == 2019 & obs$stratum == i, ]
-#   temp <- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp)
-#   temp.summary <- summary(temp)
-#   tau.hats[i,1:5] <- temp$est
-#   tau.hats[i,6] <- as.numeric(gsub(",","",temp.summary$lcl))
-#   tau.hats[i,7] <- as.numeric(gsub(",","",temp.summary$ucl))
-# }
-# colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-# tau.hats<-round(tau.hats, 0)
-# results.2019 <- print(format(tau.hats, big.mark = ","), justify = "left", quote = FALSE)
-# results.2019 <- as.data.frame(tau.hats) %>%
-#   select(tau.hat, lcl:ucl, everything())
-#
-#
-# # 2.5 - 2020 ####
-# # All data
-# est.2020 <- Sight.Est(observed ~ 1, odat = subset(obs,year == 2020), sdat = exp,
-#                       sampinfo = subset(sampinfo, year == 2020))
-# results.all.2020 <-summary(est.2020)
-#
-# # By strata
-# tau.hats <- matrix(NA, length(eff.2020$ID), 7)
-# rownames(tau.hats) <- c(eff.2020$Unit)
-# for(i in 1:length(eff.2020$ID)){
-#   tempsamp <- sampinfo[sampinfo$year==2020 & sampinfo$stratum==i, ]
-#   tempobs <- obs[obs$year == 2020 & obs$stratum == i, ]
-#   temp <- Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp)
-#   temp.summary <- summary(temp)
-#   tau.hats[i,1:5] <- temp$est
-#   tau.hats[i,6] <- as.numeric(gsub(",","",temp.summary$lcl))
-#   tau.hats[i,7] <- as.numeric(gsub(",","",temp.summary$ucl))
-# }
-# colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-# tau.hats<-round(tau.hats, 0)
-# results.2020 <- print(format(tau.hats, big.mark = ","), justify = "left", quote = FALSE)
-# results.2020 <- as.data.frame(tau.hats) %>%
-#   select(tau.hat, lcl:ucl, everything())
 
-# 2.6 - 2021 ####
-# All data
-# est.2021 <-
-#   Sight.Est(
-#     observed ~ 1,
-#     odat = subset(obs, year == 2021),
-#     sdat = exp,
-#     sampinfo = subset(sampinfo, year == 2021),  
-#     method = "Wong",
-#     logCI = TRUE,
-#     alpha = 0.2,
-#     Vm.boot = TRUE,
-#     nboot = 10000
-#   )
-# mHT.all.2021 <- as.data.frame(summary(est.2021)) %>%
-#   mutate(tau.hat = as.numeric(str_remove_all(tau.hat, "[^[:digit:]]")),
-#          lcl = as.numeric(str_remove_all(lcl, "[^[:digit:]]")),
-#          ucl = as.numeric(str_remove_all(ucl, "[^[:digit:]]")),
-#          sd = sqrt(est.2021$est[2]),
-#          cv = sd/tau.hat)
-
-# By strata
-tau.hats <- matrix(NA, length(eff.2021$ID), 7)
-rownames(tau.hats) <- c(eff.2021$Unit)
-for (i in 1:length(eff.2021$ID)) {
+# 2021
+tau.hats <- matrix(NA, length(eff$ID[eff$year == 2021]), 7)
+rownames(tau.hats) <- c(eff$Unit[eff$year == 2021])
+for (i in 1:length(eff$ID[eff$year == 2021])) {
   tempsamp <- sampinfo[sampinfo$year == 2021 & sampinfo$stratum == i,]
   tempobs <- obs[obs$year == 2021 & obs$stratum == i,]
   temp <-
-    Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp,  method = "Wong",
-              logCI = TRUE,
-              alpha = 0.2,
+    Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
+              alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 10000)
+              nboot = 1000)
   temp.summary <- summary(temp)
   tau.hats[i, 1:5] <- temp$est
   tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
@@ -211,88 +63,17 @@ mHT.2021 <- as.data.frame(tau.hats) %>%
   mutate(sd = round(sqrt(VarTot)),
          cv = sd/tau.hat)
 
-## 2.6.1 With VOC ####
-
-
-# remove any NAs in voc
-obs.voc <- obs %>%
-  filter(!is.na(voc))
-# # All data
-# est.2021.voc <-
-#   Sight.Est(
-#     observed ~ voc,
-#     odat = subset(obs.voc, year == 2021),
-#     sdat = exp,
-#     sampinfo = subset(sampinfo, year == 2021),  
-#     method = "Wong",
-#     logCI = TRUE,
-#     alpha = 0.2,
-#     Vm.boot = TRUE,
-#     nboot = 10000
-#   )
-# mHT.all.2021.voc <- as.data.frame(summary(est.2021.voc))  %>%
-#   mutate(tau.hat = as.numeric(str_remove_all(tau.hat, "[^[:digit:]]")),
-#          lcl = as.numeric(str_remove_all(lcl, "[^[:digit:]]")),
-#          ucl = as.numeric(str_remove_all(ucl, "[^[:digit:]]")),
-#          sd = sqrt(est.2021.voc$est[2]),
-#          cv = sd/tau.hat)
-
-# By strata
-tau.hats <- matrix(NA, length(eff.2021$ID), 7)
-rownames(tau.hats) <- c(eff.2021$Unit)
-for (i in 1:length(eff.2021$ID)) {
-  tempsamp <- sampinfo[sampinfo$year == 2021 & sampinfo$stratum == i,]
-  tempobs <- obs.voc[obs.voc$year == 2021 & obs.voc$stratum == i,]
-  temp <-
-    Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
-              alpha = 0.2,
-              Vm.boot = TRUE,
-              nboot = 10000)
-  temp.summary <- summary(temp)
-  tau.hats[i, 1:5] <- temp$est
-  tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
-  tau.hats[i, 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
-}
-colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-tau.hats <- round(tau.hats, 0)
-mHT.2021.voc <-
-  print(format(tau.hats, big.mark = ","),
-        justify = "left",
-        quote = FALSE)
-mHT.2021.voc <- as.data.frame(tau.hats) %>%
-  select(tau.hat, lcl:ucl, everything()) %>%
-  mutate(sd = round(sqrt(VarTot)),
-         cv = sd/tau.hat)
-
-# 2.7 - 2022 ####
-# All data
-# est.2022 <-
-#   Sight.Est(
-#     observed ~ 1,
-#     odat = subset(obs, year == 2022),
-#     sdat = exp,
-#     sampinfo = subset(sampinfo, year == 2022),
-#     Vm.boot = TRUE,
-#     nboot = 10000
-#   )
-# mHT.all.2022 <- as.data.frame(summary(est.2022))  %>%
-#   mutate(tau.hat = as.numeric(str_remove_all(tau.hat, "[^[:digit:]]")),
-#          lcl = as.numeric(str_remove_all(lcl, "[^[:digit:]]")),
-#          ucl = as.numeric(str_remove_all(ucl, "[^[:digit:]]")),
-#          sd = sqrt(est.2022$est[2]),
-#          cv = sd/tau.hat)
-
-# By strata
-tau.hats <- matrix(NA, length(eff.2022$ID), 7)
-rownames(tau.hats) <- c(eff.2022$Unit)
-for (i in 1:length(eff.2022$ID)) {
+# 2022
+tau.hats <- matrix(NA, length(eff$ID[eff$year == 2022]), 7)
+rownames(tau.hats) <- c(eff$Unit[eff$year == 2022])
+for (i in 1:length(eff$ID[eff$year == 2022])) {
   tempsamp <- sampinfo[sampinfo$year == 2022 & sampinfo$stratum == i,]
   tempobs <- obs[obs$year == 2022 & obs$stratum == i,]
   temp <-
-    Sight.Est(observed ~ 1, odat = tempobs, sdat = exp, tempsamp,
-              alpha = 0.2,
+    Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
+              alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 10000)
+              nboot = 1000)
   temp.summary <- summary(temp)
   tau.hats[i, 1:5] <- temp$est
   tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
@@ -309,66 +90,13 @@ mHT.2022 <- as.data.frame(tau.hats) %>%
   mutate(sd = round(sqrt(VarTot)),
          cv = sd/tau.hat)
 
-
-## 2.7.1 With VOC ####
-
-
-# remove any NAs in voc
-obs.voc <- obs %>%
-  filter(!is.na(voc))
-# All data
-# est.2022.voc <-
-#   Sight.Est(
-#     observed ~ voc,
-#     odat = subset(obs.voc, year == 2022),
-#     sdat = exp,
-#     sampinfo = subset(sampinfo, year == 2022),
-#     Vm.boot = TRUE,
-#     nboot = 10000
-#   )
-# mHT.all.2022.voc <- as.data.frame(summary(est.2022.voc)) %>%
-#   mutate(tau.hat = as.numeric(str_remove_all(tau.hat, "[^[:digit:]]")),
-#          lcl = as.numeric(str_remove_all(lcl, "[^[:digit:]]")),
-#          ucl = as.numeric(str_remove_all(ucl, "[^[:digit:]]")),
-#          sd = sqrt(est.2022.voc$est[2]),
-#          cv = sd/tau.hat)
-
-# By strata
-tau.hats <- matrix(NA, length(eff.2022$ID), 7)
-rownames(tau.hats) <- c(eff.2022$Unit)
-for (i in 1:length(eff.2022$ID)) {
-  tempsamp <- sampinfo[sampinfo$year == 2022 & sampinfo$stratum == i,]
-  tempobs <- obs.voc[obs.voc$year == 2022 & obs.voc$stratum == i,]
-  temp <-
-    Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
-              alpha = 0.2,
-              Vm.boot = TRUE,
-              nboot = 10000)
-  temp.summary <- summary(temp)
-  tau.hats[i, 1:5] <- temp$est
-  tau.hats[i, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
-  tau.hats[i, 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
-}
-colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
-tau.hats <- round(tau.hats, 0)
-mHT.2022.voc <-
-  print(format(tau.hats, big.mark = ","),
-        justify = "left",
-        quote = FALSE)
-mHT.2022.voc <- as.data.frame(tau.hats) %>%
-  select(tau.hat, lcl:ucl, everything()) %>%
-  mutate(sd = round(sqrt(VarTot)),
-         cv = sd/tau.hat)
-
 # SAVE AND CLEAR ENVIRONMENT ####
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
 save(
   list = c(
     "mHT.2021",
-    "mHT.2021.voc",
     "mHT.2022",
-    "mHT.2022.voc"
   ),
   file = "mHT_output.RData"
 )
