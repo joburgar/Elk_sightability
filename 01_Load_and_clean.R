@@ -289,7 +289,8 @@ obs <- obs %>%
          bulls = as.integer(bulls),
          unclass = as.integer(unclass),
          voc = as.integer(voc),
-         grpsize = as.integer(grpsize))
+         grpsize = as.integer(grpsize)) %>%
+  arrange(year, stratum)
 obs %>%
 # make sure totals = sum of cows, calves, etc
   filter(total != (cows+calves+spikes+bulls+unclass)) %>%
@@ -306,7 +307,7 @@ obs %>%
   glimpse() # all good now
 
 ## 1.4.4 SAVE mHT DATA ####
-save(list = c("eff", "exp", "obs", "sampinfo", "eff.2021", "eff.2022"), file = "mHT_input.Rdata")
+save(list = c("eff", "exp", "obs", "sampinfo"), file = "mHT_input.Rdata")
 
 # 1.5 Bayesian Data ####
 ## Main differences between bayesian and mHT datasets:
