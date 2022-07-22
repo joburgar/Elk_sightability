@@ -43,11 +43,8 @@ model
         taus[i] <- q[i] * y[i]
     }
 for (i in 1:Nsubunits.yr) {
-t <- i-1
-d <- as.numeric(scalars[c(0:t)])
-e <- sum(d, 1)
-# f[i] <- scalars[c(0:i)]
-# l[f[i]] <- sum(as.numeric(f[i]))
-# tau.hat[i] <- sum(taus[c(e[d[i]]:l[f[i]])])
+t[i] <- scalars[i,1]
+d[i] <- scalars[i,2]
+tau.hat[i] <- sum(taus[c(t[i]:d[i])])
 }
 }

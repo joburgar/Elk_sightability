@@ -16,12 +16,12 @@ lapply(list.of.packages, require, character.only = TRUE)
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
 # Parameters monitored
-params <- c("bo", "bvoc", paste(colnames(scalar.dat)[1:(ncol(scalar.dat)-3)], sep = ","))
+params <- c("bo", "bvoc", "tau.hat")
 
 # MCMC settings
-ni <- 1000 # build to 40000
+ni <- 100 # build to 40000
 nt <- 2     # 50% thinning rate (discard every 2nd iteration)
-nb <- 500
+nb <- 50
 nc <- 3
 
 # i <- 1
@@ -42,18 +42,9 @@ nc <- 3
 bundle.dat <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
                    x=oper.dat$x+.000001, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper.dat
                    h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
-                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, scalars=scalar.dat[,1:nrow(plot.dat)]) #scalar.dat
+                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, scalars=scalar.sums) #scalar.dat
 # Run model
 jags_output <- jags(bundle.dat, inits, params, "beta_binom_model_elk2022.txt", nc, ni, nb, nt)
-
-tau.hat <- matrix(NA, length(bundle.dat$scalars), 2)
-for(i in 1:length(bundle.dat$scalars)){
-  tau.hat[i,1] <- colnames(bundle.dat$scalars)[i]
-  p <- if_else(i > 1, (sum(bundle.dat$scalars[1:(i-1)])+1), 1)
-  q <- sum(bundle.dat$scalars[1:i])
-  tau.hat[i, 2] <- as.double(sum(oper.dat$h[p:q]))
-}
-colnames(tau.hat) <- c("ID", "tau.hat")
 
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 

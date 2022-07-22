@@ -442,8 +442,15 @@ scalar.dat <- scalar.dat %>%
          Ngroups = as.double(nrow(oper.dat)),
          Nsubunits.yr = as.double(nrow(plot.dat)))
 
+# Need scalar.sums to ease modelling
+scalar.sums <- matrix(NA, nrow(plot.dat), 2)
+for (i in 1:nrow(plot.dat)){
+  t <- i-1
+  scalar.sums[i, 1] <- sum(scalar.dat[,0:t], 1)
+  scalar.sums[i, 2] <- sum(scalar.dat[,0:i])
+}
   
 ## 1.3.7 SAVE DATA ####
-save(list = c("sight.dat", "oper.dat", "plot.dat", "scalar.dat", "eff"), file = "jags_input.Rdata")
+save(list = c("sight.dat", "oper.dat", "plot.dat", "scalar.dat", "eff", "scalar.sums"), file = "jags_input.Rdata")
 rm(list = ls())
 
