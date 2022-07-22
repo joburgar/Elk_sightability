@@ -24,30 +24,36 @@ nt <- 2     # 50% thinning rate (discard every 2nd iteration)
 nb <- 500
 nc <- 3
 
-i <- 1
-
-bundle.hy <- as.character()
-  for(i in 1:(ncol(scalar.dat)-3)){
-  bundle.hy[i] <-
-    paste(colnames(scalar.dat)[i],
-          "=scalar.dat$",
-          colnames(scalar.dat)[i], 
-          ", ",
-          sep = "")
-  }
-# run and copy the output to paste into data bundle (don't forget to remove quotes and final comma)
-paste0(bundle.hy, collapse = "")
+# i <- 1
+# 
+# bundle.hy <- as.character()
+#   for(i in 1:(ncol(scalar.dat)-3)){
+#   bundle.hy[i] <-
+#     paste(colnames(scalar.dat)[i],
+#           "=scalar.dat$",
+#           colnames(scalar.dat)[i], 
+#           ", ",
+#           sep = "")
+#   }
+# # # run and copy the output to paste into data bundle (don't forget to remove quotes and final comma)
+# # paste0(bundle.hy, collapse = "")
 
 # Bundle data
 bundle.dat <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
-                   x=oper.dat$x+.000001, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper_dat
+                   x=oper.dat$x+.000001, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper.dat
                    h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
-                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, 
-                   h1y1=scalar.dat$h1y1, h2y1=scalar.dat$h2y1, h3y1=scalar.dat$h3y1, h4y1=scalar.dat$h4y1, h5y1=scalar.dat$h5y1, h6y1=scalar.dat$h6y1, h7y1=scalar.dat$h7y1, h8y1=scalar.dat$h8y1, h9y1=scalar.dat$h9y1, h10y1=scalar.dat$h10y1, h11y1=scalar.dat$h11y1, h12y1=scalar.dat$h12y1, h13y1=scalar.dat$h13y1, h14y2=scalar.dat$h14y2, h15y2=scalar.dat$h15y2, h16y2=scalar.dat$h16y2, h17y2=scalar.dat$h17y2, h18y2=scalar.dat$h18y2, h19y2=scalar.dat$h19y2, h20y2=scalar.dat$h20y2) # scalar_dat
-
+                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, scalars=scalar.dat[,1:nrow(plot.dat)]) #scalar.dat
 # Run model
 jags_output <- jags(bundle.dat, inits, params, "beta_binom_model_elk2022.txt", nc, ni, nb, nt)
 
+tau.hat <- matrix(NA, length(bundle.dat$scalars), 2)
+for(i in 1:length(bundle.dat$scalars)){
+  tau.hat[i,1] <- colnames(bundle.dat$scalars)[i]
+  p <- if_else(i > 1, (sum(bundle.dat$scalars[1:(i-1)])+1), 1)
+  q <- sum(bundle.dat$scalars[1:i])
+  tau.hat[i, 2] <- as.double(sum(oper.dat$h[p:q]))
+}
+colnames(tau.hat) <- c("ID", "tau.hat")
 
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
