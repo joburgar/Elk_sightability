@@ -197,7 +197,9 @@ obs.2021 <- dat.2021 %>%
     notes = `Notes:`,
     survey.type = `Survey type`,
     date = Date
-  )
+  ) %>%
+  filter(subunit %in% eff$Unit[eff$year == 2021])
+
 obs.2021$survey.type <- standard_survey(obs.2021$survey.type)
 
 # 2022
@@ -226,7 +228,8 @@ obs.2022 <- dat.2022 %>%
     notes = `Notes:`,
     survey.type = `Survey type`,
     date = Date
-  )
+  ) %>%
+  filter(subunit %in% eff$Unit[eff$year == 2022])
 obs.2022$survey.type <- standard_survey(obs.2022$survey.type)
 
 
@@ -298,8 +301,9 @@ save(list = c("eff", "exp", "obs", "sampinfo"), file = "mHT_input.Rdata")
 # x = visual obstrcution measurements associated with the test trial data used to develop the sightability model
 # a = activity indicator (0 if bedded, 1 if standing/moving)
 # z = detection indicator (1 if the group was observed, 0 otherwise)
+# t = group size
 
-sight.dat <- exp.tmp %>%
+sight.dat <- exp %>%
 # standardize habitat
   mutate(
     # 1 - rock / other (gravel, landfill, road, WTP, other)
@@ -307,34 +311,31 @@ sight.dat <- exp.tmp %>%
     # 3 - cutblock / powerline (block, powerline, NSR, FTG)
     # 4 - mature forest (mature, old)
     habitat = case_when(
-      grepl("mature|old|conifer", Habitat, ignore.case = TRUE) ~ 4,
-      grepl("block|powerline|nsr|ftg", Habitat, ignore.case = TRUE) ~ 3,
-      grepl("field|meadow|riparian|wetland|river|slide|out", Habitat, ignore.case = TRUE) ~ 2,
-      grepl("gravel|landfill|road|wtp|other", Habitat, ignore.case = TRUE) ~ 1
+      grepl("mature|old|conifer", habitat, ignore.case = TRUE) ~ 4,
+      grepl("block|powerline|nsr|ftg", habitat, ignore.case = TRUE) ~ 3,
+      grepl("field|meadow|riparian|wetland|river|slide|out", habitat, ignore.case = TRUE) ~ 2,
+      grepl("gravel|landfill|road|wtp|other", habitat, ignore.case = TRUE) ~ 1
     ),
     # standardize activity
     activity = case_when(
-      grepl("standing|moving|run", Activity, ignore.case = TRUE) ~ 1,
-      grepl("bed", Activity, ignore.case = TRUE) ~ 0),
+      grepl("standing|moving|run", activity, ignore.case = TRUE) ~ 1,
+      grepl("bed", activity, ignore.case = TRUE) ~ 0),
     a = as.double(activity),
     s = as.double(habitat),
-    x.tilde = as.double(voc),
-    z.tilde = as.double(if_else(survey.type=="Telemetry", 0, 1), .keep="none")) %>%
-  select(total, a, s, x.tilde, z.tilde)
+    t = as.double(grpsize),
+    x.tilde = as.double(voc*.01),
+    z.tilde = as.double(observed)) %>%
+  select(a, s, t, x.tilde, z.tilde)
 
 glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
 
-### test correlations ####
+### 1.5.1.1 test correlations ####
 sight.dat %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde))
 
-x.z <- cor.test(sight.dat$z.tilde, sight.dat$x.tilde, method="pearson") # -0.5338735 with p-value 0.00002698 
-# -> significant moderate negative correlation between voc and z
-a.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$a)], sight.dat$a[!is.na(sight.dat$a)], method="pearson") # -0.08887529 with p-value 0.5268 
-# -> no corelation between activity and z
-s.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$s)], sight.dat$s[!is.na(sight.dat$s)], method="pearson") # -0.5193816 with p-value 0.0000484 
-# -> significant moderate negative correlation between habitat and z
-t.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$total)], sight.dat$total[!is.na(sight.dat$total)], method="pearson") # 0.1106949 with  p-value = 0.4211
-# -> no correlation between group size and z
+x.z <- cor.test(sight.dat$z.tilde, sight.dat$x.tilde, method="pearson")
+a.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$a)], sight.dat$a[!is.na(sight.dat$a)], method="pearson")
+s.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$s)], sight.dat$s[!is.na(sight.dat$s)], method="pearson")
+t.z <- cor.test(sight.dat$z.tilde[!is.na(sight.dat$t)], sight.dat$t[!is.na(sight.dat$t)], method="pearson")
 
 Correlation <- as.data.frame(matrix(NA, 4, 3))
 Correlation[1,] <- c("VOC", x.z$estimate, x.z$p.value)
@@ -345,6 +346,7 @@ colnames(Correlation) <- c("Variable", "Correlation", "p")
 
 write.csv(Correlation, "C:/Users/TBRUSH/R/Elk_sightability/out/Correlation.csv", row.names = FALSE)
 
+### 1.5.1.2 finish sight.dat ####
 # voc is most significantly correlated with sightability -> select only voc
 sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
 
@@ -375,18 +377,19 @@ oper.dat <- obs %>%
 
 # augmented data
 # need to determine max m of each h
-m.est <- oper.dat %>%
+aug <- oper.dat %>%
   group_by(yr, h) %>%
-  summarize(m = n())
-m.max <- m.est %>%
+  summarize(m = n()) %>%
+  ungroup() %>%
   group_by(h) %>%
   summarize(yr = yr,
             m = m,
-            m.max = max(m))
-b.h <- m.max %>%
-  mutate(b.h = 10*m.max,
-         B_minus_m = b.h-m)
-oper.dat.aug <- b.h[rep(1:nrow(b.h), b.h$B_minus_m),] %>%
+            m.max = max(m)) %>%
+  ungroup() %>%
+  mutate(b = 20*m.max,
+         aug = b-m)
+
+oper.dat.aug <- aug[rep(1:nrow(aug), aug$aug),] %>%
   mutate(x = NA, ym1 = NA, h = h, q = NA, z = 0, yr = yr, subunits = h, .keep="none") %>%
   ungroup()
 
@@ -426,40 +429,20 @@ colnames(scalar.dat) <- c("R", "Ngroups", "Nsubunits.yr")
 unique(oper.dat$h[oper.dat$yr==1])
 unique(oper.dat$h[oper.dat$yr==2])
 
+
+scalar.dat <- as.data.frame(matrix(NA, 1, (nrow(plot.dat))))
+i <- 1
+for(i in 1:nrow(plot.dat)){
+  scalar.dat[,i] <- as.double(nrow(oper.dat %>% filter(yr == plot.dat$yr.plots[i], h == plot.dat$h.plots[i])))
+  colnames(scalar.dat)[i] <- paste("h", plot.dat$h.plots[i], "y", plot.dat$yr.plots[i], sep = "")
+  }
+
 scalar.dat <- scalar.dat %>%
   mutate(R = as.double(nrow(sight.dat)),
          Ngroups = as.double(nrow(oper.dat)),
-         Nsubunits.yr = as.double(nrow(plot.dat)),
-         ny1 = as.double(nrow(oper.dat %>% filter(yr == 1))),
-         nh1y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 1))),
-         nh2y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 2))),
-         nh3y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 3))),
-         nh4y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 4))),
-         nh6y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 6))),
-         nh7y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 7))),
-         nh8y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 8))),
-         nh9y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 9))),
-         nh10y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 10))),
-         nh11y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 11))),
-         nh16y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 16))),
-         nh17y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 17))),
-         nh19y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 19))),
-         nh21y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 21))),
-         nh22y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 22))),
-         nh23y1 = as.double(nrow(oper.dat %>% filter(yr == 1, h == 23))),
-         nh1y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 1))),
-         nh2y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 2))),
-         nh4y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 4))),
-         nh5y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 5))),
-         nh6y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 6))),
-         nh12y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 12))),
-         nh13y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 13))),
-         nh14y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 14))),
-         nh15y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 15))),
-         nh18y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 18))),
-         nh20y2 = as.double(nrow(oper.dat %>% filter(yr == 2, h == 20)))
-         )
+         Nsubunits.yr = as.double(nrow(plot.dat)))
 
+  
 ## 1.3.7 SAVE DATA ####
 save(list = c("sight.dat", "oper.dat", "plot.dat", "scalar.dat", "eff"), file = "jags_input.Rdata")
 rm(list = ls())

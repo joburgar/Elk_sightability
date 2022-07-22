@@ -16,7 +16,7 @@ lapply(list.of.packages, require, character.only = TRUE)
 inits <-  function() list(bo=runif(1), bvoc=runif(1))
 
 # Parameters monitored
-params <- c("bo", "bvoc", "tau.nh1y1", "tau.nh2y1", "tau.nh3y1", "tau.nh4y1", "tau.nh6y1", "tau.nh9y1", "tau.nh10y1", "tau.nh11y1", "tau.nh16y1", "tau.nh17y1", "tau.nh19y1", "tau.nh21y1", "tau.nh22y1", "tau.nh23y1", "tau.nh2y2", "tau.nh4y2", "tau.nh5y2", "tau.nh6y2", "tau.nh12y2", "tau.nh13y2", "tau.nh14y2", "tau.nh15y2", "tau.nh18y2", "tau.nh20y2")
+params <- c("bo", "bvoc", paste(colnames(scalar.dat)[1:(ncol(scalar.dat)-3)], sep = ","))
 
 # MCMC settings
 ni <- 1000 # build to 40000
@@ -24,11 +24,26 @@ nt <- 2     # 50% thinning rate (discard every 2nd iteration)
 nb <- 500
 nc <- 3
 
+i <- 1
+
+bundle.hy <- as.character()
+  for(i in 1:(ncol(scalar.dat)-3)){
+  bundle.hy[i] <-
+    paste(colnames(scalar.dat)[i],
+          "=scalar.dat$",
+          colnames(scalar.dat)[i], 
+          ", ",
+          sep = "")
+  }
+# run and copy the output to paste into data bundle (don't forget to remove quotes and final comma)
+paste0(bundle.hy, collapse = "")
+
 # Bundle data
 bundle.dat <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.dat
                    x=oper.dat$x+.000001, ym1=oper.dat$ym1, h=oper.dat$h, q=oper.dat$q, z=oper.dat$z, yr=oper.dat$yr, subunits=oper.dat$subunits, # oper_dat
                    h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
-                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, ny1=scalar.dat$ny1, nh1y1=scalar.dat$nh1y1, nh2y1=scalar.dat$nh2y1, nh3y1=scalar.dat$nh3y1, nh4y1=scalar.dat$nh4y1, nh6y1=scalar.dat$nh6y1, nh7y1=scalar.dat$nh7y1, nh8y1=scalar.dat$nh8y1, nh9y1=scalar.dat$nh9y1, nh10y1=scalar.dat$nh10y1, nh11y1=scalar.dat$nh11y1, nh16y1=scalar.dat$nh16y1, nh17y1=scalar.dat$nh17y1, nh19y1=scalar.dat$nh19y1, nh21y1=scalar.dat$nh21y1, nh22y1=scalar.dat$nh22y1, nh23y1=scalar.dat$nh23y1, nh1y2=scalar.dat$nh1y2, nh2y2=scalar.dat$nh2y2, nh4y2=scalar.dat$nh4y2, nh5y2=scalar.dat$nh5y2, nh6y2=scalar.dat$nh6y2, nh12y2=scalar.dat$nh12y2, nh13y2=scalar.dat$nh13y2, nh14y2=scalar.dat$nh14y2, nh15y2=scalar.dat$nh15y2, nh18y2=scalar.dat$nh18y2) # scalar_dat
+                   R=scalar.dat$R, Ngroups=scalar.dat$Ngroups, Nsubunits.yr=scalar.dat$Nsubunits.yr, 
+                   h1y1=scalar.dat$h1y1, h2y1=scalar.dat$h2y1, h3y1=scalar.dat$h3y1, h4y1=scalar.dat$h4y1, h5y1=scalar.dat$h5y1, h6y1=scalar.dat$h6y1, h7y1=scalar.dat$h7y1, h8y1=scalar.dat$h8y1, h9y1=scalar.dat$h9y1, h10y1=scalar.dat$h10y1, h11y1=scalar.dat$h11y1, h12y1=scalar.dat$h12y1, h13y1=scalar.dat$h13y1, h14y2=scalar.dat$h14y2, h15y2=scalar.dat$h15y2, h16y2=scalar.dat$h16y2, h17y2=scalar.dat$h17y2, h18y2=scalar.dat$h18y2, h19y2=scalar.dat$h19y2, h20y2=scalar.dat$h20y2) # scalar_dat
 
 # Run model
 jags_output <- jags(bundle.dat, inits, params, "beta_binom_model_elk2022.txt", nc, ni, nb, nt)
