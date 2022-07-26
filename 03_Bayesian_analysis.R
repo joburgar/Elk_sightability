@@ -19,9 +19,9 @@ inits <-  function() list(bo=runif(1), bvoc=runif(1))
 params <- c("bo", "bvoc", "tau.hat")
 
 # MCMC settings
-ni <- 100 # build to 40000
+ni <- 40000 # build to 40000
 nt <- 2     # 50% thinning rate (discard every 2nd iteration)
-nb <- 50
+nb <- 20000
 nc <- 3
 
 # i <- 1
@@ -48,7 +48,7 @@ jags_output <- jags(bundle.dat, inits, params, "beta_binom_model_elk2022.txt", n
 
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
-save("jags_output",file="jags_output.RData")
+save("jags_output", "scalar.dat", file="jags_output.RData")
 save("eff",file="jags_effort.RData")
 
 rm(list = ls())

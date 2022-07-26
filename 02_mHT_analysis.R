@@ -38,7 +38,7 @@ load("mHT_input.Rdata")
 
 # 2021
 tau.hats <- matrix(NA, length(eff$ID[eff$year == 2021]), 7)
-rownames(tau.hats) <- c(eff$Unit[eff$year == 2021])
+
 for (i in 1:length(eff$ID[eff$year == 2021])) {
   tempsamp <- sampinfo[sampinfo$year == 2021 & sampinfo$stratum == i,]
   tempobs <- obs[obs$year == 2021 & obs$stratum == i,]
@@ -54,18 +54,17 @@ for (i in 1:length(eff$ID[eff$year == 2021])) {
 }
 colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
 tau.hats <- round(tau.hats, 0)
-mHT.2021 <-
-  print(format(tau.hats, big.mark = ","),
-        justify = "left",
-        quote = FALSE)
-mHT.2021 <- as.data.frame(tau.hats) %>%
-  select(tau.hat, lcl:ucl, everything()) %>%
+
+mHT_y1 <- as.data.frame(tau.hats) %>%
+  mutate(EPU = as.character(eff$Unit[eff$year == 2021])) %>%
+  select(EPU, tau.hat, lcl:ucl, everything()) %>%
   mutate(sd = round(sqrt(VarTot)),
-         cv = sd/tau.hat)
+         cv = sd/tau.hat) %>%
+  arrange(EPU)
 
 # 2022
 tau.hats <- matrix(NA, length(eff$ID[eff$year == 2022]), 7)
-rownames(tau.hats) <- c(eff$Unit[eff$year == 2022])
+
 for (i in (length(eff$ID[eff$year == 2021])+1):length(eff$ID)) {
   tempsamp <- sampinfo[sampinfo$year == 2022 & sampinfo$stratum == i,]
   tempobs <- obs[obs$year == 2022 & obs$stratum == i,]
@@ -73,7 +72,7 @@ for (i in (length(eff$ID[eff$year == 2021])+1):length(eff$ID)) {
     Sight.Est(observed ~ voc, odat = tempobs, sdat = exp, tempsamp,
               alpha = 0.05,
               Vm.boot = TRUE,
-              nboot = 1000)
+              nboot = 10000)
   temp.summary <- summary(temp)
   tau.hats[(i-length(eff$ID[eff$year == 2021])), 1:5] <- temp$est
   tau.hats[(i-length(eff$ID[eff$year == 2021])), 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
@@ -81,22 +80,20 @@ for (i in (length(eff$ID[eff$year == 2021])+1):length(eff$ID)) {
 }
 colnames(tau.hats) <- c(names(temp$est), "lcl", "ucl")
 tau.hats <- round(tau.hats, 0)
-mHT.2022 <-
-  print(format(tau.hats, big.mark = ","),
-        justify = "left",
-        quote = FALSE)
-mHT.2022 <- as.data.frame(tau.hats) %>%
-  select(tau.hat, lcl:ucl, everything()) %>%
+mHT_y2 <- as.data.frame(tau.hats) %>%
+  mutate(EPU = eff$Unit[eff$year == 2022]) %>%
+  select(EPU, tau.hat, lcl:ucl, everything()) %>%
   mutate(sd = round(sqrt(VarTot)),
-         cv = sd/tau.hat)
+         cv = sd/tau.hat) %>%
+  arrange(EPU)
 
 # SAVE AND CLEAR ENVIRONMENT ####
 setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
 save(
   list = c(
-    "mHT.2021",
-    "mHT.2022"
+    "mHT_y1",
+    "mHT_y2"
   ),
   file = "mHT_output.RData"
 )

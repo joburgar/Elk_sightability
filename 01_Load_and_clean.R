@@ -117,9 +117,7 @@ exp <- exp.tmp %>%
     year = as.integer(Year),
     observed = as.integer(if_else(survey.type=="Inventory", 1, 0)),
     voc = as.integer(voc*100),
-    grpsize = as.integer(total),
-    habitat = Habitat,
-    activity = Activity
+    grpsize = as.integer(total)
   )
 
 ## 1.4.2 EFFORT ####
@@ -149,25 +147,14 @@ eff.2022 <- eff.2022 %>%
          Unit != "Tzoonie-Narrows")
 
 eff <- bind_rows(eff.2021, eff.2022)
-eff$ID <- row.names(eff)
+eff$ID <- as.integer(row.names(eff))
 
 sampinfo <- left_join(eff, EPU.areas, by="Unit") %>%
-  mutate(stratum = as.integer(ID), 
+  mutate(stratum = ID, 
          Nh = as.integer(LIW_Cap_sqkm), 
          nh = as.integer(if_else(area_surveyed_km > LIW_Cap_sqkm, LIW_Cap_sqkm, area_surveyed_km)), 
          year = as.integer(year)) %>%
   select(year, stratum, Nh, nh)
-
-# Option 2
-# exp <- exp.tmp %>%
-#   transmute(
-#     year = as.integer(Year),
-#     observed = as.integer(if_else(survey.type=="Transect", 1, 0)),
-#     voc = as.integer(voc*100),
-#     grpsize = as.integer(total),
-#     habitat = Habitat,
-#     activity = Activity
-#   )
 
 ## 1.4.3 OBSERVATIONAL DATASET ####
 
@@ -258,8 +245,9 @@ obs <- obs.voc
 
 # Make all numeric fields integers
 obs <- obs %>%
-  mutate(year = as.integer(year),
+  transmute(year = as.integer(year),
          stratum = as.integer(stratum),
+         subunit = as.integer(stratum),
          total = as.integer(total),
          cows = as.integer(cows),
          calves = as.integer(calves),
@@ -284,6 +272,11 @@ obs %>%
   filter(total != (cows+calves+spikes+bulls+unclass)) %>%
   glimpse() # all good now
 
+# Before saving, check moose dataset to ensure your data has the same format
+data(exp.m)
+data(obs.m)
+data(sampinfo.m)
+
 ## 1.4.4 SAVE mHT DATA ####
 save(list = c("eff", "exp", "obs", "sampinfo"), file = "mHT_input.Rdata")
 
@@ -303,7 +296,15 @@ save(list = c("eff", "exp", "obs", "sampinfo"), file = "mHT_input.Rdata")
 # z = detection indicator (1 if the group was observed, 0 otherwise)
 # t = group size
 
-sight.dat <- exp %>%
+sight.dat <- exp.tmp %>%
+  transmute(
+    year = as.integer(Year),
+    observed = as.integer(if_else(survey.type=="Inventory", 1, 0)),
+    voc = as.integer(voc*100),
+    grpsize = as.integer(total),
+    activity = Activity,
+    habitat = Habitat
+  )  %>%
 # standardize habitat
   mutate(
     # 1 - rock / other (gravel, landfill, road, WTP, other)
@@ -386,7 +387,7 @@ aug <- oper.dat %>%
             m = m,
             m.max = max(m)) %>%
   ungroup() %>%
-  mutate(b = 20*m.max,
+  mutate(b = 5*m.max,
          aug = b-m)
 
 oper.dat.aug <- aug[rep(1:nrow(aug), aug$aug),] %>%
