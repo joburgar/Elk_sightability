@@ -14,13 +14,12 @@ setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
 load("jags_output.RData")
 load("mHT_output.RData")
-
-results_exp <- read_excel("C:/Users/TBRUSH/R/Elk_sightability/input/SurveyData_ SPRING_2022.xls", 
+standard <- read_excel("C:/Users/TBRUSH/R/Elk_sightability/input/SurveyData_ SPRING_2022.xls", 
                           sheet = "2022 Summary", range = "A2:AH29")
 
 # Expert estimates ####
 
-results_exp <- results_exp %>%
+standard <- standard %>%
   select(EPU=`...1`, y1=`Est., Population April 2021`, y2=`Est., Population April 2022`) %>%
   arrange(EPU)
 
@@ -48,17 +47,19 @@ load("jags_effort.RData")
 
 jags.summary <- as.data.frame(jags_output$BUGSoutput$summary)
 
-tau.jags <- matrix(NA,(nrow(jags.summary)-3),7)
+tau.jags <- matrix(NA,(nrow(jags.summary)-3),9)
 tau.jags <- as.data.frame(tau.jags)
 tau.jags[,1] <- as.numeric(str_extract(colnames(scalar.dat)[1:length(jags_output$BUGSoutput$median$tau.hat)], "(?<=h)[:digit:]{1,2}")) %>% sort()
 tau.jags[,2] <- as.numeric(str_extract(colnames(scalar.dat)[1:length(jags_output$BUGSoutput$median$tau.hat)], "(?<=y)[:digit:]{1,2}")) %>% sort()
 tau.jags[,3] <- round(jags.summary$`50%`[4:nrow(jags.summary)])
 tau.jags[,4] <- round(jags.summary$`2.5%`[4:nrow(jags.summary)])
 tau.jags[,5] <- round(jags.summary$`97.5%`[4:nrow(jags.summary)])
-tau.jags[,6] <- round(jags.summary$Rhat[4:nrow(jags.summary)], 3)
-tau.jags[,7] <- round(jags.summary$sd[4:nrow(jags.summary)]/jags.summary$`50%`[4:nrow(jags.summary)], 3)
+tau.jags[,6] <- round(jags.summary$`25%`[4:nrow(jags.summary)])
+tau.jags[,7] <- round(jags.summary$`75%`[4:nrow(jags.summary)])
+tau.jags[,8] <- round(jags.summary$Rhat[4:nrow(jags.summary)], 3)
+tau.jags[,9] <- round(jags.summary$sd[4:nrow(jags.summary)]/jags.summary$`50%`[4:nrow(jags.summary)], 3)
 
-colnames(tau.jags) <- c("ID", "year", "tau.hat","lcl","ucl","Rhat", "cv")
+colnames(tau.jags) <- c("ID", "year", "tau.hat","lcl_95", "ucl_95", "lcl_50", "ucl_50", "Rhat", "cv")
 tau.jags <- left_join(tau.jags, eff[,c(1,5)], by="ID") %>%
   select(EPU = Unit, year:cv) %>%
   arrange(EPU, year)
@@ -86,17 +87,15 @@ jags.cv <- as.data.frame(jags.cv)
 ## 2021 ####
 
 mHT_y1 <- mHT_y1 %>%
-  select(EPU, tau.hat:ucl, cv) %>%
+  select(EPU, tau.hat:ucl_95, cv:ucl_50) %>%
   mutate(model = "mHT")
 jags_y1 <- tau.jags_y1 %>%
   mutate(model = "Bayesian")
-expert_y1<- results_exp %>%
+standard_y1<- standard %>%
   filter(EPU %in% jags_y1$EPU) %>%
   select(EPU, tau.hat=y1) %>%
-  mutate(lcl = NA,
-         ucl = NA,
-         model = "Standard")
-results_y1 <- bind_rows(mHT_y1, jags_y1, expert_y1) %>%
+  mutate(model = "Standard")
+results_y1 <- bind_rows(mHT_y1, jags_y1, standard_y1) %>%
   mutate(year = 2021)
 row.names(results_y1) <- 1:nrow(results_y1)
 
@@ -104,17 +103,15 @@ row.names(results_y1) <- 1:nrow(results_y1)
 ## 2022 ####
 
 mHT_y2 <- mHT_y2 %>%
-  select(EPU, tau.hat:ucl, cv) %>%
+  select(EPU, tau.hat:ucl_95, cv:ucl_50) %>%
   mutate(model = "mHT")
 jags_y2 <- tau.jags_y2 %>%
   mutate(model = "Bayesian")
-expert_y2<- results_exp %>%
+standard_y2<- standard %>%
   filter(EPU %in% jags_y2$EPU) %>%
   select(EPU, tau.hat=y2) %>%
-  mutate(lcl = NA,
-         ucl = NA,
-         model = "Standard")
-results_y2 <- bind_rows(mHT_y2, jags_y2, expert_y2) %>%
+  mutate(model = "Standard")
+results_y2 <- bind_rows(mHT_y2, jags_y2, standard_y2) %>%
   mutate(year = 2022)
 row.names(results_y2) <- 1:nrow(results_y2)
 
@@ -148,77 +145,64 @@ row.names(results_y2) <- 1:nrow(results_y2)
 
 
 ## All results ####
+results_all <- bind_rows(results_y1, results_y2) %>%
+  write.csv("Results_all.csv", row.names = F)
+
 tau_transposed <- bind_rows(results_y1, results_y2) %>%
   arrange(year, EPU) %>%
   select(EPU, year, model, tau.hat) %>%
   pivot_wider(names_from = model, values_from = tau.hat)
 
 results_final <- bind_rows(results_y1, results_y2) %>%
-  mutate(estimate = if_else(is.na(lcl), paste(tau.hat),
-                            paste(tau.hat, " (", lcl, ",", ucl, ")", sep = ""))) %>%
-  select(year, EPU, model, estimate, cv) %>%
-  pivot_wider(names_from = model, values_from = c(estimate, cv)) %>%
+  mutate(estimate_95CI = if_else(is.na(lcl_95), paste(tau.hat),
+                            paste(tau.hat, " (", lcl_95, ",", ucl_95, ")", sep = ""))) %>%
+  select(year, EPU, model, estimate_95CI, cv) %>%
+  pivot_wider(names_from = model, values_from = c(estimate_95CI, cv)) %>%
   write.csv("Results_final.csv", row.names = F)
 
-## Agreeance: mHT vs. Bayesian vs. Standard ####
+## Agreement: mHT vs. Bayesian vs. Standard ####
 
 # mHT vs Bayesian
-## 2021
 
 agree.mB = agree_test(x = tau_transposed$mHT,
                       y = tau_transposed$Bayesian, 
                       delta = 1)
-print(agreemB) # 74%
-plot(a2021mB)
-
+print(agree.mB) # 68%
+agree.mB_plot = plot(agree.mB) +
+  scale_y_continuous(breaks = c(seq(-300, 400, by = 100)), limits = c(-300, 400))
+agree.mB_plot
 
 
 # mHT vs Expert
-# 2021
 
-agree_mE = agree_test(x = mHT_y1$tau.hat,
-                      y = expert_y1$tau.hat,
+agree.mS = agree_test(x = tau_transposed$mHT,
+                      y = tau_transposed$Standard, 
                       delta = 1)
-print(a2021mE)# 56%
-plot(a2021mE)
+print(agree.mS) # 49%
+agree.mS_plot = plot(agree.mS) +
+  scale_y_continuous(breaks = c(seq(-300, 400, by = 100)), limits = c(-300, 400))
+agree.mS_plot
 
-a2022mE = agree_test(x = mHT_y2$tau.hat,
-                     y = results_y2$tau.hat, 
-                     delta = 1)
-print(a2022mE)
-plot(a2022mE) # -22%
 
 # JAGS vs Expert
-# 2021
-a2021BE = agree_test(x = jags_y1$tau.hat,
-                     y = results_y1$tau.hat,
-                     delta = 1)
-print(a2021BE) # 82%
-plot(a2021BE)
 
-# 2022
-a2022BE = agree_test(x = jags_y2$tau.hat,
-                     y = results_y2$tau.hat, 
-                     delta = 1)
-print(a2022BE) #16%
-plot(a2022BE)
+agree.BS = agree_test(x = tau_transposed$Bayesian,
+                      y = tau_transposed$Standard, 
+                      delta = 1)
+print(agree.BS) # 77%
+agree.BS_plot = plot(agree.BS) +
+  scale_y_continuous(breaks = c(seq(-300, 400, by = 100)), limits = c(-300, 400))
+agree.BS_plot
 
-# Agreeance Table
-Agreement <- as.data.frame(matrix(NA, 6, 3))
-# Agreement[1,] <- c(2021, "mHT vs. Bayesian", "None", a2021mB$ccc.xy[1])
-Agreement[1,] <- c(2021, "mHT vs. Bayesian", a2021mB.voc$ccc.xy[1])
-# Agreement[3,] <- c(2022, "mHT vs. Bayesian", "None", a2022mB$ccc.xy[1])
-Agreement[2,] <- c(2022, "mHT vs. Bayesian", a2022mB.voc$ccc.xy[1])
-# Agreement[5,] <- c(2021, "mHT vs. Standard", "None", a2021mE$ccc.xy[1])
-Agreement[3,] <- c(2021, "mHT vs. Standard", a2021mE.voc$ccc.xy[1])
-# Agreement[7,] <- c(2022, "mHT vs. Standard", "None", a2022mE$ccc.xy[1])
-Agreement[4,] <- c(2022, "mHT vs. Standard", a2022mE.voc$ccc.xy[1])
-Agreement[5,] <- c(2021, "Bayesian vs. Standard", a2021BE$ccc.xy[1])
-Agreement[6,] <- c(2022, "Bayesian vs. Standard", a2022BE$ccc.xy[1])
+# Agreement Table
+Agreement <- as.data.frame(matrix(NA, 3, 2))
+Agreement[1,] <- c("mHT vs. Bayesian", agree.mB$ccc.xy[1])
+Agreement[2,] <- c("mHT vs. Standard", agree.mS$ccc.xy[1])
+Agreement[3,] <- c("Bayesian vs. Standard", agree.BS$ccc.xy[1])
 
-colnames(Agreement) <- c("Year", "Test", "Agreeance")
+colnames(Agreement) <- c("Test", "CCC")
 
-# write.csv(Agreement,"Agreement.csv", row.names = FALSE)
+write.csv(Agreement,"Agreement.csv", row.names = FALSE)
 
 
 ## CV stats ####
@@ -229,56 +213,81 @@ write.csv(cv.all, "CV.csv", row.names = F)
 # PLOT RESULTS ####
 
 ## 2021 ####
-results_plot1 = ggplot(results_y1, aes(x = EPU, y=tau.hat, color=model))+
-  geom_point(shape=15, size=3, position = position_dodge(width = 0.7))+
+results_plot1 = ggplot(results_y1, aes(x = EPU, y=tau.hat, fill=model))+
+  geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  scale_y_continuous("Population Estimate", breaks=c(0, 200, 400, 600, 800), limits=c(0,950)) +
-  geom_linerange(aes(EPU, ymin = lcl, ymax = ucl), position = position_dodge(width = 0.7)) +
-  theme(axis.text.x=element_text(size=12, angle = 90, vjust = .4)) +
-  theme(axis.text.y = element_text(size=12)) +
-  scale_colour_grey(start = 0.2, end = 0.8)
+  scale_y_continuous("Population Estimate") +
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
+  theme(axis.text.x=element_text(size=10, angle = 90, vjust = .4)) +
+  theme(axis.text.y = element_text(size=11)) +
+  scale_fill_grey(start = 0, end = 1)
 # For palette choices: 
 #   RColorBrewer::display.brewer.all()
 results_plot1
 ggsave("Results_2021.jpeg")
 
-## 2022 ####
-results_plot2 = ggplot(results_y2, aes(x = EPU, y=tau.hat, color=model))+
-  geom_point(shape=15, size=3, position = position_dodge(width = 0.7))+
+# Bayesian and Standard only
+results_BS_plot1 = ggplot(results_y1[results_y1$model != "mHT",], aes(x = EPU, y=tau.hat, fill=model))+
+  geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  scale_y_continuous("Population Estimate", breaks=c(0, 200, 400, 600, 800), limits=c(0,950)) +
-  geom_linerange(aes(EPU, ymin = lcl, ymax = ucl), position = position_dodge(width = 0.7)) +
-  theme(axis.text.x=element_text(size=12, angle = 90, vjust = .4)) +
-  theme(axis.text.y = element_text(size=12)) +
-  scale_colour_grey(start = 0.2, end = 0.8)
+  scale_y_continuous("Population Estimate") +
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
+  theme(axis.text.x=element_text(size=11, angle = 90, vjust = .4)) +
+  theme(axis.text.y = element_text(size=10)) +
+  scale_fill_grey(start = 0, end = 1)
+# For palette choices: 
+#   RColorBrewer::display.brewer.all()
+results_BS_plot1
+ggsave("Results_BS_2021.jpeg")
+
+## 2022 ####
+results_plot2 = ggplot(results_y2, aes(x = EPU, y=tau.hat, fill=model))+
+  geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  scale_y_continuous("Population Estimate") +
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
+  theme(axis.text.x=element_text(size=10, angle = 90, vjust = .4)) +
+  theme(axis.text.y = element_text(size=11)) +
+  scale_fill_grey(start = 0, end = 1)
 # For palette choices: 
 #   RColorBrewer::display.brewer.all()
 results_plot2
 ggsave("Results_2022.jpeg")
 
-
-
-
-
-
+# Bayesian and Standard only
+results_BS_plot2 = ggplot(results_y2[results_y2$model != "mHT",], aes(x = EPU, y=tau.hat, fill=model))+
+  geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  scale_y_continuous("Population Estimate") +
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
+  theme(axis.text.x=element_text(size=11, angle = 90, vjust = .4)) +
+  theme(axis.text.y = element_text(size=10)) +
+  scale_fill_grey(start = 0, end = 1)
+# For palette choices: 
+#   RColorBrewer::display.brewer.all()
+results_BS_plot2
+ggsave("Results_BS_2022.jpeg")
   
-# Check Distributions ####
-
-mcmc_violin(jags_output$BUGSoutput$sims.array,
-            pars = vars(tau.nh4y1, tau.nh4y2),
-            probs = c(0.05, 0.5, 0.95)
-) +
-  scale_y_continuous("Population Estimate", breaks=c(0, 200, 400, 600, 800, 1000), limits=c(0,1000)) +
-  theme(axis.text.y = element_text(size=12))
-  
-mcmc_areas(jags_output$BUGSoutput$sims.array,
-           pars = vars(tau.nh1y1, tau.nh2y1, tau.nh3y1, tau.nh4y1, tau.nh6y1, tau.nh9y1, tau.nh10y1, tau.nh11y1, tau.nh16y1, tau.nh17y1, tau.nh19y1, tau.nh21y1, tau.nh22y1, tau.nh23y1),
-           prob = 0.80,
-           prob_outer = 0.95, area_method = "equal height")
-
-mcmc_areas(jags_output$BUGSoutput$sims.array,
-           pars = vars(tau.nh2y2, tau.nh4y2, tau.nh5y2, tau.nh6y2, tau.nh12y2, tau.nh13y2, tau.nh14y2, tau.nh15y2, tau.nh18y2, tau.nh20y2),
-           prob = 0.80,
-           prob_outer = 0.95, area_method = "equal height")
+# # Check Distributions ###
+# 
+# mcmc_violin(jags_output$BUGSoutput$sims.array,
+#             probs = c(0.025, 0.05, 0.5, 0.95, 0.975)) +
+#   scale_y_continuous("Population Estimate") +
+#   theme(axis.text.y = element_text(size=12))
+#   
+# mcmc_areas(jags_output$BUGSoutput$sims.array,
+#            prob = 0.90,
+#            prob_outer = 0.95, area_method = "equal height")
+# 
+# mcmc_areas(jags_output$BUGSoutput$sims.array,
+#            pars = vars(tau.nh2y2, tau.nh4y2, tau.nh5y2, tau.nh6y2, tau.nh12y2, tau.nh13y2, tau.nh14y2, tau.nh15y2, tau.nh18y2, tau.nh20y2),
+#            prob = 0.80,
+#            prob_outer = 0.95, area_method = "equal height")
