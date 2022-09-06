@@ -65,8 +65,8 @@ tau.jags <- left_join(tau.jags, eff[,c(1,5)], by="ID") %>%
   arrange(EPU, year)
 
 
-library(writexl)
-write_xlsx(tau.jags, "tau.jags.xlsx")
+# library(writexl)
+# write_xlsx(tau.jags, "tau.jags.xlsx")
 
 tau.jags_y1 <- tau.jags %>% filter(year == 1) %>% select(-c(year, Rhat))
 tau.jags_y2 <- tau.jags %>% filter(year == 2) %>% select(-c(year, Rhat))
@@ -154,11 +154,13 @@ tau_transposed <- bind_rows(results_y1, results_y2) %>%
   pivot_wider(names_from = model, values_from = tau.hat)
 
 results_final <- bind_rows(results_y1, results_y2) %>%
-  mutate(estimate_95CI = if_else(is.na(lcl_95), paste(tau.hat),
-                            paste(tau.hat, " (", lcl_95, ",", ucl_95, ")", sep = ""))) %>%
-  select(year, EPU, model, estimate_95CI, cv) %>%
-  pivot_wider(names_from = model, values_from = c(estimate_95CI, cv)) %>%
-  write.csv("Results_final.csv", row.names = F)
+  arrange(EPU) %>%
+  mutate(CI_95 = if_else(is.na(lcl_95), as.character(NA),
+                         paste(lcl_95, ucl_95, sep = ", ")),
+         CI_50 = if_else(is.na(lcl_50), as.character(NA),
+                         paste(lcl_50, ucl_50, sep = ", "))) %>%
+  select(EPU, year, model, tau.hat, CI_95, CI_50, cv) # %>%
+  # write.csv("Results_final.csv", row.names = F)
 
 ## Agreement: mHT vs. Bayesian vs. Standard ####
 
@@ -202,24 +204,24 @@ Agreement[3,] <- c("Bayesian vs. Standard", agree.BS$ccc.xy[1])
 
 colnames(Agreement) <- c("Test", "CCC")
 
-write.csv(Agreement,"Agreement.csv", row.names = FALSE)
+# write.csv(Agreement,"Agreement.csv", row.names = FALSE)
 
 
 ## CV stats ####
 cv.all <- bind_rows("mHT" = mHT.cv, "Bayesian" = jags.cv, .id = "Model") %>%
   arrange(year)
-write.csv(cv.all, "CV.csv", row.names = F)
+# write.csv(cv.all, "CV.csv", row.names = F)
 
 # PLOT RESULTS ####
 
 ## 2021 ####
 results_plot1 = ggplot(results_y1, aes(x = EPU, y=tau.hat, fill=model))+
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   scale_y_continuous("Population Estimate") +
-  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
-  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   theme(axis.text.x=element_text(size=10, angle = 90, vjust = .4)) +
   theme(axis.text.y = element_text(size=11)) +
   scale_fill_grey(start = 0, end = 1)
@@ -230,12 +232,12 @@ ggsave("Results_2021.jpeg")
 
 # Bayesian and Standard only
 results_BS_plot1 = ggplot(results_y1[results_y1$model != "mHT",], aes(x = EPU, y=tau.hat, fill=model))+
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   scale_y_continuous("Population Estimate") +
-  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
-  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   theme(axis.text.x=element_text(size=11, angle = 90, vjust = .4)) +
   theme(axis.text.y = element_text(size=10)) +
   scale_fill_grey(start = 0, end = 1)
@@ -246,12 +248,12 @@ ggsave("Results_BS_2021.jpeg")
 
 ## 2022 ####
 results_plot2 = ggplot(results_y2, aes(x = EPU, y=tau.hat, fill=model))+
+  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
+  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   geom_point(shape=21, size=3, position = position_dodge(width = 0.7))+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   scale_y_continuous("Population Estimate") +
-  geom_linerange(aes(EPU, ymin = lcl_95, ymax = ucl_95), linetype = 2, position = position_dodge(width = 0.7)) +
-  geom_linerange(aes(EPU, ymin = lcl_50, ymax = ucl_50), position = position_dodge(width = 0.7) ) +
   theme(axis.text.x=element_text(size=10, angle = 90, vjust = .4)) +
   theme(axis.text.y = element_text(size=11)) +
   scale_fill_grey(start = 0, end = 1)
