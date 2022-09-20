@@ -15,13 +15,17 @@
 # script to load elk collar and EPU data
 # written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 17-Feb-2021
 #####################################################################################
+version$major
+version$minor
+R_version <- paste0("R-",version$major,".",version$minor)
 
-.libPaths("C:/Program Files/R/R-4.0.5/library") # to ensure reading/writing libraries from C drive
+.libPaths(paste0("C:/Program Files/R/",R_version,"/library")) # to ensure reading/writing libraries from C drive
 tz = Sys.timezone() # specify timezone in BC
 
 # Load Packages
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda",
-                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "scrbook", "xtable")
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "R2jags","coda",
+                      "OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable")
+# removed scrbook from list of packages
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
