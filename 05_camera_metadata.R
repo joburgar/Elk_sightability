@@ -51,6 +51,10 @@ EPU_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
 cam_metadata <- read.csv("data/SP_deployment_station_data.csv")
 cam_metadata <- st_as_sf(cam_metadata,coords = c("Longitude", "Latitude"), crs = 4326) %>% st_transform(3005)
 
+sp_dtn_sites <- read.csv("data/Cam_focalsp_detections.csv")
+sp_dtn_sites[is.na(sp_dtn_sites)] <- 0
+colnames(sp_dtn_sites)[1] <- "Deployment.Location.ID"
+
 random_lcn <- st_read(paste0(getwd(),"/data/elk_all_sites.kml")) %>% st_transform(3005)
 
 ggplot()+
@@ -70,6 +74,70 @@ ggplot()+
   geom_sf(data = cam_metadata)+
   geom_sf(data = random_lcn, col="blue")+
   theme_minimal()
+
+
+###--- Create Species Detection Maps for Focal Species
+# Bear, Deer, Elk
+cam_sp_data <- left_join(cam_metadata, sp_dtn_sites)
+cam_sp_data <- cam_sp_data %>% filter(!is.na(Bear))
+nrow(cam_sp_data)
+nrow(cam_metadata)
+# check working properly
+
+# bear
+Dtn_bear <- ggplot()+
+  geom_sf(data= EPU_poly, col="black")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Bear!=0,], aes(size = Bear), col="darkblue")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Bear==0,], col="cadetblue")+
+  # geom_sf(data = cam_metadata, col="blue")+
+  theme_minimal()
+
+Cairo(file="out/Dtn_bear.PNG",
+      type="png",
+      width=2500,
+      height=3000,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Dtn_bear
+dev.off()
+
+# elk
+Dtn_elk <- ggplot()+
+  geom_sf(data= EPU_poly, col="black")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Elk!=0,], aes(size = Elk), col="darkblue")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Elk==0,], col="cadetblue")+
+  # geom_sf(data = cam_metadata, col="blue")+
+  theme_minimal()
+
+Cairo(file="out/Dtn_elk.PNG",
+      type="png",
+      width=2500,
+      height=3000,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Dtn_elk
+dev.off()
+
+# deer
+Dtn_deer <- ggplot()+
+  geom_sf(data= EPU_poly, col="black")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Deer!=0,], aes(size = Deer), col="darkblue")+
+  geom_sf(data = cam_sp_data[cam_sp_data$Deer==0,], col="cadetblue")+
+  # geom_sf(data = cam_metadata, col="blue")+
+  theme_minimal()
+
+Cairo(file="out/Dtn_deer.PNG",
+      type="png",
+      width=2500,
+      height=3000,
+      pointsize=15,
+      bg="white",
+      dpi=300)
+Dtn_deer
+dev.off()
+
 
   ###---
   # want to get average distance / area for centre of each land based cell (i.e., what is on the landscape)
@@ -213,6 +281,17 @@ retrieve_covariate_dist <- function (point.dat=point.dat, cov.dat=cov.dat, cov.d
 
 # points <- random_lcn
 
+# how far are camera points from each other
+cam.dist <- st_nn(cam_metadata %>% st_transform(crs=26910),
+                  cam_metadata %>% st_transform(crs=26910),
+                  k=2, returnDist = T)
+
+cam.dist <- unlist(cam.dist$dist)
+cam.dist <- cam.dist[cam.dist >0]
+min(cam.dist) # 1372.374
+mean(cam.dist) # 1913.309
+max(cam.dist) # 4002.707
+sd(cam.dist)/ sqrt(length(cam.dist)) # se = 67.5
 
 #- elevation
 # for some reason it's not working?!?!?
