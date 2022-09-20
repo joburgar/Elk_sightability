@@ -264,6 +264,7 @@ EPU$EPU.Unit.Name
 all(!is.na(EPU_poly$EPU_Unit_N) %in% EPU$EPU.Unit.Name) # if TRUE then the same names (other than 1 NA)
 
 glimpse(EPU)
+EPU %>% summarise(min(EPU.Land.Area..km2.), mean(EPU.Land.Area..km2.), max(EPU.Land.Area..km2.), se = sd(EPU.Land.Area..km2.)/sqrt(nrow(EPU)))
 names(EPU)
 EPU <- EPU %>% select("EPU.Unit.Name", "EPU.Land.Area..Ha.", "EPU.Land.Area..km2.","Population.Estimate..2012.","Population.Density.Class..2012.",
                       "EWR.Requirement","EWR.available.quality","Forage.cover.availability","Forage.cover.interspersion","Population.Resiliency",
