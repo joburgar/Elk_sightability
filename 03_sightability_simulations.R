@@ -150,7 +150,7 @@ sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(1,42), g
 #- can use the default values of simulation for experimental data frame
 
 # create 100 datasets of simulated experimental (sightability trial) data
-# first with sightability surveys over 2 years, assuming differnces in sighting so between 50-60 groups observed across years
+# first with sightability surveys over 2 years, assuming differences in sighting so between 50-60 groups observed across years
 sim.exp.trials50 <- vector('list', 100)
 names(sim.exp.trials50) <- paste0('sim.exp.trials50', seq_along(sim.exp.trials50))
 for(i in seq_along(sim.exp.trials50)){
@@ -488,7 +488,7 @@ sight_dat50 <- vector('list', 100)
 names(sight_dat50) <- paste0('sight_dat50_', seq_along(sight_dat50))
 for(i in seq_along(sight_dat50)){
 
-  sight_dat50.list <-  sim.exp.trials50[[i]]
+  sight_dat50.list <-  sim.exp.trials50[i,]
   sight_dat50.list <- sight_dat50.list[c("voc", "observed")]
   sight_dat50.list$voc <- sight_dat50.list$voc * 0.01 # change to proportion for consistency with Fieberg code
   colnames(sight_dat50.list) <- c("x.tilde", "z.tilde")
@@ -496,7 +496,7 @@ for(i in seq_along(sight_dat50)){
   sight_dat50[[i]] <-sight_dat50.list
 }
 
-sight_dat50[[1]] # check - looks the same as Fieberg's sight_dat csv
+sight_dat50[[2]] # check - looks the same as Fieberg's sight_dat csv
 
 # 2.  oper_dat.csv:  Operational survey data:  4380 records
 # (includes observed and augmented data for the annual surveys in  2006 and 2007 combined).
@@ -566,7 +566,7 @@ for(i in seq_along(oper_dat.Skwawka)){
   oper_dat.Skwawka[[i]] <- rbind(oper_dat.Skwawka.obs, oper_dat.Skwawka.aug)
 }
 
-oper_dat.Skwawka[[2]] # check - looks
+oper_dat.Skwawka[[2]] # check - looks correct
 
 # 3.  plot_dat.csv:  Plot-level information data: 77 records (one for each of the plots sampled in either 2006 or 2007)
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to low, medium and high density strata)
@@ -655,11 +655,18 @@ for(i in seq_along(bundle.data)){
 jags_Sechelt50 <- vector('list', 100)
 names(jags_Sechelt50) <- paste0('jags_Sechelt50_', seq_along(jags_Sechelt50))
 for(i in seq_along(jags_Sechelt50)){
-  jags_Sechelt50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
+  jags_Sechelt50.list <- jagsUI::jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
                        n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
-                       parallel=TRUE, n.cores=3)
+                       parallel=TRUE, n.cores)
   jags_Sechelt50[[i]] <- jags_Sechelt50.list
 }
+
+# for(i in seq_along(jags_Sechelt50)){
+#   jags_Sechelt50.list <- jags(bundle.data[[i]], inits, params, "beta_binom_model_elksim.txt",
+#                                       n.chains=nc, n.thin=nt, n.iter=ni, n.burnin=nb,
+#                                       parallel=TRUE, n.cores=3)
+#   jags_Sechelt50[[i]] <- jags_Sechelt50.list
+# }
 save("jags_Sechelt50",file="Simjags_Sechelt50_rd2.RData") #
 
 summary(jags_Sechelt50) # only the first 18 models ran
