@@ -83,10 +83,116 @@
 # print(format(round(boot.est$est, 0), big.mark = ","), quote = FALSE)
 
 ################################################################################################
-###--- let's create some simulated data to play with
-# use parameters adapted from 2020 survey data and Sechelt Peninsulsa
-# Sechelt Peninsula = estimated population 222
-# group size = 1-52, mean = 12; 2019 collaring data notes 16 groups with mean = 18, range 1-42
+###--- let's create some simulated data to work with
+
+#####################################################################################
+# if working in the elk_sightability project, need to point to correct library
+version$major
+version$minor
+R_version <- paste0("R-",version$major,".",version$minor)
+
+.libPaths(paste0("C:/Program Files/R/",R_version,"/library")) # to ensure reading/writing libraries from C drive
+tz = Sys.timezone() # specify timezone in BC
+
+# 1.1 LOAD PACKAGES ####
+
+list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable", "statip", "R2jags")
+# Check you have them and load them
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(list.of.packages, require, character.only = TRUE)
+
+# 1.2 Create functions ####
+name_fixer <- function(x){
+  output <- case_when(
+    grepl("Rainy", x, ignore.case = TRUE) ~ "Rainy-Gray",
+    grepl("Narrows", x, ignore.case = TRUE) ~ "Tzoonie-Narrows",
+    grepl("Deserted", x, ignore.case = TRUE) ~ "Deserted-Stakawus",
+    grepl("Chehalis", x, ignore.case = TRUE) ~ "Chehalis",
+    grepl("Sechelt", x, ignore.case = TRUE) ~ "Sechelt Peninsula",
+    grepl("Homa", x, ignore.case = TRUE) ~ "Homathko",
+    grepl("Haslam", x, ignore.case = TRUE) ~ "Haslam",
+    grepl("Dani", x, ignore.case = TRUE) ~ "Powell-Daniels",
+    grepl("Quatum", x, ignore.case = TRUE) ~ "Quatam",
+    grepl("Lillooet", x, ignore.case = TRUE) ~ "Lower Lillooet",
+    grepl("Vancouver", x, ignore.case = TRUE) ~ "Vancouver",
+    grepl("Squamish", x, ignore.case = TRUE) ~ "Squamish",
+    grepl("Indian", x, ignore.case = TRUE) ~ "Indian",
+    grepl("Stave", x, ignore.case = TRUE) ~ "Stave",
+    grepl("Theo", x, ignore.case = TRUE) ~ "Theo",
+    grepl("Mcnab", x, ignore.case = TRUE) ~ "McNab",
+    grepl("Bear", x, ignore.case = TRUE) ~ "Bear",
+    TRUE ~ x
+  )
+  return(output)
+}
+
+standard_survey <- function(x){
+  output <- case_when(
+    grepl("incidental", x, ignore.case = TRUE) ~ "Incidental",
+    grepl("telemetry", x, ignore.case = TRUE) ~ "Telemetry",
+    grepl("transect", x, ignore.case = TRUE) ~ "Inventory",
+    grepl("inventory", x, ignore.case = TRUE) ~ "Inventory",
+    TRUE ~ "Other")
+  return(output)
+}
+
+
+# 1.1 Load subjective sightability data  ####
+sub.sight.all <- read_excel("SurveyData_ SPRING_2022.xls", 
+                       sheet = "2022 Summary", range = "A2:AK29", 
+                       col_types = NULL) %>%
+  type_convert() %>% glimpse()
+colnames(sub.sight.all)[1] <- "EPU"
+colnames(sub.sight.all)[26:34] <- c("Sub_2014","Sub_2015","Sub_2016","Sub_2017","Sub_2018","Sub_2019","Sub_2020","Sub_2021", "Sub_2022")
+sub.sight <- sub.sight.all %>% select(EPU, starts_with("Sub"))
+
+# to be more realistic, assume that each EPU is sampled every 2nd year
+index1 <- seq(1,nrow(sub.sight),by=2)
+index2 <- seq(2,nrow(sub.sight),by=2)
+#Replace with NA
+sub.sight$Sub_2014[index2] <- NA
+sub.sight$Sub_2015[index1] <- NA
+sub.sight$Sub_2016[index2] <- NA
+sub.sight$Sub_2017[index1] <- NA
+sub.sight$Sub_2018[index2] <- NA
+sub.sight$Sub_2019[index1] <- NA
+sub.sight$Sub_2020[index2] <- NA
+sub.sight$Sub_2021[index1] <- NA
+
+sight.true.N <- sub.sight %>% pivot_longer(cols=starts_with("Sub"), names_to="Year", values_to="N", values_drop_na = T)
+sight.true.N$Year <- as.factor(str_replace(sight.true.N$Year, "Sub_", ""))
+sight.true.N <- sight.true.N %>% arrange(Year, EPU)
+
+
+# load real data (2021/2022) for ideas on group size, etc
+load("input/mHT_input.Rdata")
+exp
+obs %>% group_by(year) %>% count(stratum)
+
+
+
+# plot the voc and total animals observed data, to get a sense for simulations
+# plot the observed animals group size by voc
+# looks as voc increases to about 10, grp size might have negative effect (weird), 
+# but >10 voc associated with higher group size
+# ggplot(exp %>% filter(observed==1), aes(grpsize, voc))+
+#   geom_point()+
+#   geom_smooth()+
+#   theme_minimal()
+
+# group size seems to follow a poisson distribution and is similar when obs==1 or 0
+# go with rpois(x, 12) to fill in grpsize for each year
+summary(exp[exp$observed==1,]$grpsize)
+summary(exp[exp$observed==0,]$grpsize)
+sd(exp[exp$observed==1,]$grpsize)
+sd(exp[exp$observed==0,]$grpsize, na.rm = T)
+sd(exp$grpsize, na.rm = T)
+
+hist(exp)
+hist(rpois(50, 12))
+
+# group size = 1-52, mean = 12; sd = 9
 # on average, groups contained 0.3 bulls, 1.4 spikes, 13 cows and 3.3 calves
 # calf:cow ratio = 30:100 (range 14-39 : 100)
 # yearling:cow ratio = 21:100
