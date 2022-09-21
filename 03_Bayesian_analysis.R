@@ -46,10 +46,11 @@ bundle.dat <- list(x.tilde=sight.dat$x.tilde, z.tilde=sight.dat$z.tilde, #sight.
 # Run model
 jags_output <- jags(bundle.dat, inits, params, "input/beta_binom_model_elk2022.txt", nc, ni, nb, nt)
 
+
 # setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
-save("jags_output", "scalar.dat", file="out/jags_output.RData")
-save("eff",file="out/jags_effort.RData")
+save("jags_output", "scalar.dat", file="out/03_Bayesian_analysis_jags_output.RData")
+save("eff",file="out/03_Bayesian_analysis_jags_effort.RData")
 
 rm(list = ls())
 # 
