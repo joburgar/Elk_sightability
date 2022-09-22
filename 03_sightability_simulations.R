@@ -163,14 +163,81 @@ sub.sight$Sub_2021[index1] <- NA
 sight.true.N <- sub.sight %>% pivot_longer(cols=starts_with("Sub"), names_to="Year", values_to="N", values_drop_na = T)
 sight.true.N$Year <- as.factor(str_replace(sight.true.N$Year, "Sub_", ""))
 sight.true.N <- sight.true.N %>% arrange(Year, EPU)
-
+sight.true.N$EPU <- name_fixer(sight.true.N$EPU)
 
 # load real data (2021/2022) for ideas on group size, etc
 load("input/mHT_input.Rdata")
+eff
+sampinfo
 exp
 obs %>% group_by(year) %>% count(stratum)
 
+# subset simulation data to the same EPUs in the real data analysis (19)
+sight.true.N <- sight.true.N %>% filter(EPU %in% eff$Unit)
 
+# create the effort table for the simulations
+# use the exact same area_surveyed values and just updating year
+# arranged in the order of Year, ID (same ID )
+eff.sim <- left_join(sight.true.N %>% select(-N), eff %>% select(-year), by=c("EPU"="Unit"))
+eff.sim <- eff.sim[c("EPU", "area_surveyed","area_surveyed_km","Year","ID")]
+as.data.frame(eff.sim %>% arrange(Year,ID))
+
+# create the experimental table, this one is for collared animals only
+# first pull in the number of collared animals per EPU
+
+#####################################################################################
+#- EPU polygon shapefile
+GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
+EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
+EPU_poly$EPU <- name_fixer(EPU_poly$EPU_Unit_N)
+EPU_poly <- EPU_poly %>% st_transform(3005)
+
+# load collar locations
+CollarDIR <- "C:/Users/JBURGAR/R/Analysis/Collar_data"
+collar_data <- read.csv(paste0(CollarDIR,"/Position-2022-Sep-22_12-01-28.csv"))
+glimpse(collar_data)
+collar_data <- collar_data %>% filter(Fix.Type=="3D Validated")
+collar_data <- st_as_sf(collar_data,coords = c("Longitude.deg.", "Latitude.deg."), crs = 4326) %>% st_transform(3005)
+collar_data <- collar_data  %>% st_intersection(EPU_poly)
+
+ggplot()+
+  geom_sf(data=EPU_poly %>% filter(EPU %in% c("Rainy-Gray", "Sechelt Peninsula")))+
+  geom_sf(data=collar_data)
+
+EPU_poly <- st_join(EPU_poly, collar_data %>% select(Collar.ID))
+collars.per.EPU <- EPU_poly %>% filter(EPU %in% eff$Unit) %>% group_by(EPU) %>% count(Collar.ID) %>% st_drop_geometry()
+collars.per.EPU <- collars.per.EPU %>% count(EPU)
+collars.per.EPU$ID <- eff.sim$ID[match(collars.per.EPU$EPU, eff.sim$EPU)]
+
+eff.sim %>% filter(ID==4) # no collars in the Lower Lilloet? going with it for this analysis
+# add in Lower Lillooet as one of the EPUs, but no collar data, arrange in order of ID
+collars.per.EPU <- collars.per.EPU %>% add_row(EPU="Lower Lillooet", n=0, ID=4)
+collars.per.EPU <- collars.per.EPU %>% arrange(ID)
+
+# next steps:
+# 1. associate the collars with grpsize
+# 2. associate grpsize and collar with voc
+# 3. associate collar with observed 1 or 0 based on voc
+
+# need to make a matrix / dataframe that is the same length (nrow) as number of collars * number of surveys
+sum(collars.per.EPU$n)
+eff.sim %>% count(Year)
+eff.sim %>% filter(Year=="2022")
+
+nrow(eff.sim)
+# number of years = 9, 4 sets of surveys plus the last year with 10 EPUs
+# so can simply use the sum of collars.per.EPU$n * 4 plus the sum of collars.per.EPU$n in 9th year as length
+tmp1 <- sum(collars.per.EPU$n)*4
+tmp2 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2022",]$EPU) %>% summarise(sum(n)))
+
+exp.sim <- as.data.frame(matrix(NA, nrow=tmp1+tmp2, ncol=4))
+colnames(exp.sim) <- c("year","observed","voc","grpsize")
+
+# now populate the year, the first set of EPUs surveyed (even years) has 43 collars in total and second set has 32
+tmp3 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2014",]$EPU) %>% summarise(sum(n)))
+tmp4 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2015",]$EPU) %>% summarise(sum(n)))
+exp.sim$year <- as.numeric(c(rep(c("2014","2016","2018","2020"), each=tmp3), rep(c("2015","2017","2019","2021"), each=tmp4), rep("2022", each=tmp2)))
+exp.sim <- arrange(exp.sim, year)
 
 # plot the voc and total animals observed data, to get a sense for simulations
 # plot the observed animals group size by voc
@@ -181,22 +248,74 @@ obs %>% group_by(year) %>% count(stratum)
 #   geom_smooth()+
 #   theme_minimal()
 
+# the exp table is to inform the sightability correction factor and doesn't have to match back with the obs table
+# consider the exp from the real data to inform the simulated exp table
+# doesn't seem to be a difference in group size if the group is observed or not
+# what seems to be really driving observation is voc
+
+obs0.voc.rates <- exp %>% filter(observed==0) %>% summarise(mean.voc = mean(voc, na.rm=T), sd.voc = sd(voc, na.rm=T))
+obs1.voc.rates <- exp %>% filter(observed==1) %>% summarise(mean.voc = mean(voc, na.rm=T), sd.voc = sd(voc, na.rm=T))
+
+exp %>% group_by(observed) %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
+exp %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
+
+obs %>% filter(year==2021)
+exp %>% filter(year==2021 & observed==1)
+
+hist(abs(rnorm(n=nrow(exp.sim), mean=mean(exp$grpsize, na.rm=T), sd=sd(exp$grpsize, na.rm=T))))
+hist(exp$grpsize)
 # group size seems to follow a poisson distribution and is similar when obs==1 or 0
-# go with rpois(x, 12) to fill in grpsize for each year
-summary(exp[exp$observed==1,]$grpsize)
-summary(exp[exp$observed==0,]$grpsize)
-sd(exp[exp$observed==1,]$grpsize)
-sd(exp[exp$observed==0,]$grpsize, na.rm = T)
-sd(exp$grpsize, na.rm = T)
+# go with rpois(x, 13) to fill in grpsize for each year
+theta = mean(exp$grpsize, na.rm=T)
+sim.grpsize <- rhalfnorm(n=nrow(exp.sim), theta)
+sim.grpsize <- round(sim.grpsize*100)
+sim.grpsize[sim.grpsize==0] <- 1
+hist(sim.grpsize)
+exp.sim$grpsize <- sim.grpsize
 
-hist(exp)
-hist(rpois(50, 12))
+# about 48:52 chance of seeing collared elk
+exp.sim$observed <- rbinom(nrow(exp.sim), 1, prob=0.48)
 
-# group size = 1-52, mean = 12; sd = 9
-# on average, groups contained 0.3 bulls, 1.4 spikes, 13 cows and 3.3 calves
-# calf:cow ratio = 30:100 (range 14-39 : 100)
-# yearling:cow ratio = 21:100
-# bull:cow ratio = 25:100
+# now add in % voc based on if observed
+voc0 <- abs(round(rnorm(n=nrow(exp.sim[exp.sim$observed==0,]), mean=obs0.voc.rates$mean.voc, sd=obs0.voc.rates$sd.voc)))
+voc1 <- abs(round(rnorm(n=nrow(exp.sim[exp.sim$observed==1,]), mean=obs1.voc.rates$mean.voc, sd=obs1.voc.rates$sd.voc)))
+
+exp.sim <- exp.sim %>% arrange(observed)
+exp.sim$voc <- c(voc0, voc1)
+exp.sim <- arrange(exp.sim, year)
+exp.sim <- exp.sim %>% mutate(voc = case_when(voc>100 ~ 100,TRUE ~ as.numeric(voc))) # to make sure no veg is >100 percent
+
+# now have exp.sim table ready to go
+glimpse(exp.sim)
+summary(exp.sim)
+summary(exp)
+
+exp.sim %>% group_by(observed) %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
+exp.sim %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
+
+# this exp.sim is unrealistic in that it has all EPUs surveyed for sightability in all years.
+# makes more sense to sample from it for a reasonable number of sightability trials
+# perhaps this can be part of the sensitivity testing
+# can test how many sightability trials are necessary / cost-effective
+
+
+# no need to include more than grpsize and voc for obs table
+# obs.sim is a table for all observed animals during sightability surveys
+# this includes collared and uncollared groups
+# this is just who is observed and doesn't include collar info
+# i.e., don't know from obs table if group had collar in it
+obs[is.na(obs)] <- 0
+obs %>% summarise(mean.voc = mean(voc, na.rm=T), sd.voc = sd(voc, na.rm=T))
+cor(obs[,10:11])
+
+nrow(obs %>% filter(voc<10))/nrow(obs) # ~25% of voc values < 10%
+# need to simulate the voc to be heavily inflated (1/4) with <10% values
+# the remaining values an even spread from 10-100
+inflate.voc <- sample(1:10, nrow(obs.sim)*.20)
+normal.voc <- sample(1:100, nrow(obs.sim)*.80)
+
+glimpse(obs)
+summary(obs)
 
 #- function to estimate number of animals per age-sex class based on classification ratios
 pop.size <- 222
@@ -204,20 +323,20 @@ est.sex.age.class.pop <- function(pop.size=pop.size, ratio.value=30){
   round(ratio.value / (ratio.value+100)*pop.size,0)
 }
 
+est.sex.age.class.pop(pop.size = 100)
 
 # for random numbers use rnorm with mean and sd specified for sex/age-class, bound by range of group sizes
 # n = number of groups (i.e., # of groups seen during sightability trials)
 # sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
 
 # use these functions together to generate simluated sightability trial dataset
-
 ###--- create exp.m simulated data frame
-# using a function to simulate between 50-60 sightability trials done over 2 years (2019 and 2020)
+# using a function to simulate between 19 sightability trials done every 2 years for 8 years
 # using only the covariate "visual obstruction" in the GLM
 # considering various sightability probabilities depending on the amount of "voc" or visual obstruction
-# used relatively general group size (mean, range, sd) values that could occur in multiple EPUs
+# used relatively general group size (mean, sd) values that could occur based on 2020/2021 read data
 
-sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(1,42), grpsize.m=12, grpsize.sd=10, n.sghtblty.trls=sample(50:60,1),
+sim.exp.m.fn <- function(year=c(1,2), covariates="voc", grpsize=c(1,42), field.obs=obs, n.sghtblty.trls=19,
                          cov.value=c(25,50), prob.sight=c(0.95, 0.70, 0.55, 0.45, 0.30)){
   
   sim.exp.m <- as.data.frame(matrix(nrow=n.sghtblty.trls,ncol=4))
@@ -253,39 +372,29 @@ sim.exp.m.fn <- function(year=c(2020,2019), covariates="voc", grpsize=c(1,42), g
 
 # sim.exp.m.fn()
 
-#- can use the default values of simulation for experimental data frame
 
-# create 100 datasets of simulated experimental (sightability trial) data
-# first with sightability surveys over 2 years, assuming differences in sighting so between 50-60 groups observed across years
-sim.exp.trials50 <- vector('list', 100)
-names(sim.exp.trials50) <- paste0('sim.exp.trials50', seq_along(sim.exp.trials50))
-for(i in seq_along(sim.exp.trials50)){
-  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(50:60,1))
-  sim.exp.trials50[[i]] <- sim.exp.trials.base
-}
-str(sim.exp.trials50[1])
-# output <- data.frame(lapply(sim.exp.trials50, colSums))
+# create the observed table for the simulations
+# use the same number of subunits (transects) per stratum
+simulate.obs.grps <- obs %>% group_by(stratum) %>% summarise(mean=mean(grpsize, na.rm = T), sd=sd(grpsize, na.rm = T))
 
-# then assuming differences in sighting so between 80-100 groups observed across years
-sim.exp.trials100 <- vector('list', 100)
-names(sim.exp.trials100) <- paste0('sim.exp.trials100', seq_along(sim.exp.trials100))
-for(i in seq_along(sim.exp.trials100)){
-  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(80:100,1))
-  
-  sim.exp.trials100[[i]] <- sim.exp.trials.base
-}
+eff %>% group_by(ID) %>% summarise(mean(area_surveyed_km))
 
 
-sim.exp.trials50 <- sim.exp.m.fn(n.sghtblty.trls=50)
-sim.exp.trials50 %>% count(observed) # 39 observed and 11 not observed
+# when creating the simulated observations
+# think about how many groups are encountered (rows) and how many individuals per group (grpsize)
+# use the mean and sd grpsize as input for rnorm(mean, sd)
 
-sim.exp.trials100 <- sim.exp.m.fn(n.sghtblty.trls=100)
-sim.exp.trials100 %>% count(observed) # 83 observed and 17 not observed
 
 ###--- create simulted observation data.frame
+# using a function to simulate between 19 sightability trials done every 2 years for 8 years
+# using only the covariate "visual obstruction" in the GLM
+# considering various sightability probabilities depending on the amount of "voc" or visual obstruction
+# used relatively general group size (mean, sd) values that could occur based on 2020/2021 read data
+
+
 # operational data frame consists of:
 # each row corresponds to an independently sighted group with animal-specific covariates
-# subunit is the sample plot identifier (EPU in our case?)
+# subunit is the sample plot identifier (EPU in our case)
 # stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
 # to be realistic, create same "observed" category as in sim.exp.trials and only consider observed (1) in obs data frame
 
@@ -352,6 +461,40 @@ sim.obs.m.fn <- function(year=c(2020), stratum=1, subunit=1, bull.ratio=25, calf
 }
 
 sim.obs.m.fn()
+
+
+
+#- can use the default values of simulation for experimental data frame
+
+# create 100 datasets of simulated experimental (sightability trial) data
+# first with sightability surveys over 2 years, assuming differences in sighting so between 50-60 groups observed across years
+sim.exp.trials50 <- vector('list', 100)
+names(sim.exp.trials50) <- paste0('sim.exp.trials50', seq_along(sim.exp.trials50))
+for(i in seq_along(sim.exp.trials50)){
+  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(50:60,1))
+  sim.exp.trials50[[i]] <- sim.exp.trials.base
+}
+str(sim.exp.trials50[1])
+# output <- data.frame(lapply(sim.exp.trials50, colSums))
+
+# then assuming differences in sighting so between 80-100 groups observed across years
+sim.exp.trials100 <- vector('list', 100)
+names(sim.exp.trials100) <- paste0('sim.exp.trials100', seq_along(sim.exp.trials100))
+for(i in seq_along(sim.exp.trials100)){
+  sim.exp.trials.base <- sim.exp.m.fn(n.sghtblty.trls=sample(80:100,1))
+  
+  sim.exp.trials100[[i]] <- sim.exp.trials.base
+}
+
+
+sim.exp.trials50 <- sim.exp.m.fn(n.sghtblty.trls=50)
+sim.exp.trials50 %>% count(observed) # 39 observed and 11 not observed
+
+sim.exp.trials100 <- sim.exp.m.fn(n.sghtblty.trls=100)
+sim.exp.trials100 %>% count(observed) # 83 observed and 17 not observed
+
+
+
 #- for Sechelt peninsula can use the default values of simulation for observation data frame
 
 # create 100 datasets of simulated Sechelt observation data
