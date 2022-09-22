@@ -172,6 +172,10 @@ sampinfo
 exp
 obs %>% group_by(year) %>% count(stratum)
 
+
+###################################################################################
+### eff.sim
+
 # subset simulation data to the same EPUs in the real data analysis (19)
 sight.true.N <- sight.true.N %>% filter(EPU %in% eff$Unit)
 
@@ -182,10 +186,21 @@ eff.sim <- left_join(sight.true.N %>% select(-N), eff %>% select(-year), by=c("E
 eff.sim <- eff.sim[c("EPU", "area_surveyed","area_surveyed_km","Year","ID")]
 as.data.frame(eff.sim %>% arrange(Year,ID))
 
+###################################################################################
+### sampinfo.sim
+sampinfo # keeping this consistent between years
+sampinfo.sim <- eff.sim %>% select(ID, Year)
+sampinfo.sim <- left_join(sampinfo.sim, sampinfo %>% select(-year), by=c("ID"="stratum"))
+colnames(sampinfo.sim)[1:2] <- c("stratum","year")
+sampinfo.sim <- sampinfo.sim[names(sampinfo)]
+sampinfo.sim <- sampinfo.sim %>% arrange(year, stratum)
+
+###################################################################################
+### exp.sim
+
 # create the experimental table, this one is for collared animals only
 # first pull in the number of collared animals per EPU
 
-#####################################################################################
 #- EPU polygon shapefile
 GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
 EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
@@ -298,6 +313,7 @@ exp.sim %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na
 # perhaps this can be part of the sensitivity testing
 # can test how many sightability trials are necessary / cost-effective
 
+###################################################################################
 
 # no need to include more than grpsize and voc for obs table
 # obs.sim is a table for all observed animals during sightability surveys
