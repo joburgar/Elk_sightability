@@ -96,7 +96,7 @@ tz = Sys.timezone() # specify timezone in BC
 
 # 1.1 LOAD PACKAGES ####
 
-list.of.packages <- c("tidyverse", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable", "statip", "R2jags")
+list.of.packages <- c("tidyverse", "fdrtool", "lubridate","chron","bcdata", "bcmaps","sf", "rgdal", "readxl", "Cairo", "rjags","coda","OpenStreetMap", "ggmap", "SightabilityModel","truncnorm", "doParallel", "nimble", "xtable", "statip", "R2jags")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -188,6 +188,7 @@ as.data.frame(eff.sim %>% arrange(Year,ID))
 
 ###################################################################################
 ### sampinfo.sim
+
 sampinfo # keeping this consistent between years
 sampinfo.sim <- eff.sim %>% select(ID, Year)
 sampinfo.sim <- left_join(sampinfo.sim, sampinfo %>% select(-year), by=c("ID"="stratum"))
@@ -199,6 +200,11 @@ sampinfo.sim <- sampinfo.sim %>% arrange(year, stratum)
 ### exp.sim
 
 # create the experimental table, this one is for collared animals only
+# these are technically supposed to be independent sightability trials
+# done outside the inventory surveys
+# currently creating for all collared animals per EPU per year (overkill)
+# this way we can sample from it as part of a sensitivity analysis in the simulations
+
 # first pull in the number of collared animals per EPU
 
 #- EPU polygon shapefile
@@ -251,7 +257,9 @@ colnames(exp.sim) <- c("year","observed","voc","grpsize")
 # now populate the year, the first set of EPUs surveyed (even years) has 43 collars in total and second set has 32
 tmp3 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2014",]$EPU) %>% summarise(sum(n)))
 tmp4 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2015",]$EPU) %>% summarise(sum(n)))
-exp.sim$year <- as.numeric(c(rep(c("2014","2016","2018","2020"), each=tmp3), rep(c("2015","2017","2019","2021"), each=tmp4), rep("2022", each=tmp2)))
+exp.sim$year <- as.numeric(c(rep(c("2014","2016","2018","2020"), each=tmp3), 
+                             rep(c("2015","2017","2019","2021"), each=tmp4), 
+                             rep("2022", each=tmp2)))
 exp.sim <- arrange(exp.sim, year)
 
 # plot the voc and total animals observed data, to get a sense for simulations
@@ -308,98 +316,34 @@ summary(exp)
 exp.sim %>% group_by(observed) %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
 exp.sim %>% summarise(mean.grp = mean(grpsize, na.rm=T), sd.grp = sd(grpsize, na.rm=T))
 
-# this exp.sim is unrealistic in that it has all EPUs surveyed for sightability in all years.
-# makes more sense to sample from it for a reasonable number of sightability trials
-# perhaps this can be part of the sensitivity testing
-# can test how many sightability trials are necessary / cost-effective
+# not quite the same as the field data values but similar ball park
+# slightly smaller group sizes in sim, less variation
 
 ###################################################################################
+### obs.sim
 
-# no need to include more than grpsize and voc for obs table
-# obs.sim is a table for all observed animals during sightability surveys
-# this includes collared and uncollared groups
-# this is just who is observed and doesn't include collar info
-# i.e., don't know from obs table if group had collar in it
-obs[is.na(obs)] <- 0
-obs %>% summarise(mean.voc = mean(voc, na.rm=T), sd.voc = sd(voc, na.rm=T))
-cor(obs[,10:11])
+# "true" values change each year for EPU
+sight.true.N$ID <- eff.sim$ID[match(sight.true.N$EPU, eff.sim$EPU)]
 
-nrow(obs %>% filter(voc<10))/nrow(obs) # ~25% of voc values < 10%
-# need to simulate the voc to be heavily inflated (1/4) with <10% values
-# the remaining values an even spread from 10-100
-inflate.voc <- sample(1:10, nrow(obs.sim)*.20)
-normal.voc <- sample(1:100, nrow(obs.sim)*.80)
+meanN <- sight.true.N %>% group_by(ID) %>% filter(Year %in% c(2020,2021,2022)) %>% summarise(meanN=mean(N))
+field.obs <- obs %>% group_by(stratum) %>% summarise(field.obs=sum(grpsize))
+field.obs$meanN <- meanN$meanN
+field.obs[is.na(field.obs)] <- 0
+field.obs$diff <-  field.obs$meanN - field.obs$field.obs
+sort(field.obs$diff)
+groups.seen <- obs %>% count(stratum)
+field.obs$grps.seen <- groups.seen$n
 
-glimpse(obs)
-summary(obs)
+glimpse(field.obs)
 
-#- function to estimate number of animals per age-sex class based on classification ratios
-pop.size <- 222
-est.sex.age.class.pop <- function(pop.size=pop.size, ratio.value=30){
-  round(ratio.value / (ratio.value+100)*pop.size,0)
-}
+cor(field.obs[,c("meanN","grps.seen")])
+summary(lm(grps.seen~meanN, data=field.obs))
 
-est.sex.age.class.pop(pop.size = 100)
-
-# for random numbers use rnorm with mean and sd specified for sex/age-class, bound by range of group sizes
-# n = number of groups (i.e., # of groups seen during sightability trials)
-# sum(round(rtruncnorm(n=20, a=0, b=42, mean=0.3, sd=1.5),0))
-
-# use these functions together to generate simluated sightability trial dataset
-###--- create exp.m simulated data frame
-# using a function to simulate between 19 sightability trials done every 2 years for 8 years
-# using only the covariate "visual obstruction" in the GLM
-# considering various sightability probabilities depending on the amount of "voc" or visual obstruction
-# used relatively general group size (mean, sd) values that could occur based on 2020/2021 read data
-
-sim.exp.m.fn <- function(year=c(1,2), covariates="voc", grpsize=c(1,42), field.obs=obs, n.sghtblty.trls=19,
-                         cov.value=c(25,50), prob.sight=c(0.95, 0.70, 0.55, 0.45, 0.30)){
-  
-  sim.exp.m <- as.data.frame(matrix(nrow=n.sghtblty.trls,ncol=4))
-  colnames(sim.exp.m) <- c("year", "observed", covariates, "grpsize")
-  sim.exp.m$year <- rep(year, length.out=n.sghtblty.trls)
-  
-  # use gamma distribution to create voc - considering nature of surveys, voc more likely to be skewed right (kurtosis)
-  # so might be useful to use rgamma (n = 100, shape = 4, scale = 8), rather than runif
-  sim.exp.m$voc <- round(rgamma(n = n.sghtblty.trls, shape = 4, scale = 8),0)
-  sim.exp.m <- sim.exp.m %>% mutate(voc = case_when(voc>100 ~ 100, TRUE ~ voc))
-  
-  sim.exp.m$grpsize <-round(rtruncnorm(n=n.sghtblty.trls, a=grpsize[1], b=grpsize[2], mean=grpsize.m, sd=grpsize.sd),0)
-  
-  
-  # assume if <=0.25 voc then 0.95 prob of seeing elk
-  # assume if >0.25 voc <=0.50 and group is >=5 then 0.70 prob of seeing elk
-  # assume if >0.25 voc <=0.50 and group is <5 then 0.55 prob of seeing elk
-  # assume if >0.50 voc and group is >=5 then 0.45 prob of seeing elk
-  # assume if >0.50 voc and group is <5 then 0.30 prob of seeing elk
-  
-  sim.exp.m$observed <- as.integer(0) # default to 1 to set up case_when function
-  sim.exp.m <- sim.exp.m %>% mutate(observed = case_when(voc <= cov.value[1] ~ rbinom(1, size=1, prob.sight[1]),
-                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[2]),
-                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[3]),
-                                                         voc > cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[4]),
-                                                         voc > cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[5]), TRUE ~ observed))
-  
-  sim.exp.m <- sim.exp.m %>% mutate(across(1:ncol(sim.exp.m), as.integer))
-  
-  return(sim.exp.m)
-  
-}
-
-# sim.exp.m.fn()
-
-
-# create the observed table for the simulations
-# use the same number of subunits (transects) per stratum
-simulate.obs.grps <- obs %>% group_by(stratum) %>% summarise(mean=mean(grpsize, na.rm = T), sd=sd(grpsize, na.rm = T))
-
-eff %>% group_by(ID) %>% summarise(mean(area_surveyed_km))
-
-
-# when creating the simulated observations
-# think about how many groups are encountered (rows) and how many individuals per group (grpsize)
-# use the mean and sd grpsize as input for rnorm(mean, sd)
-
+# need to sort out how many grps encountered on each survey
+summary(lm(field.obs ~ grps.seen, data=field.obs %>% filter(stratum!=9)))
+cor(field.obs[-9,2:3]) # removing 9 from here as well, gives a much higher correlation (close to lm)
+cor(field.obs[-9,c("field.obs","grps.seen")]) # removing 9 from here as well, gives a much higher correlation (close to lm)
+hist(rnorm(100, mean=10, sd=1.6))
 
 ###--- create simulted observation data.frame
 # using a function to simulate between 19 sightability trials done every 2 years for 8 years
@@ -407,78 +351,74 @@ eff %>% group_by(ID) %>% summarise(mean(area_surveyed_km))
 # considering various sightability probabilities depending on the amount of "voc" or visual obstruction
 # used relatively general group size (mean, sd) values that could occur based on 2020/2021 read data
 
-
 # operational data frame consists of:
 # each row corresponds to an independently sighted group with animal-specific covariates
 # subunit is the sample plot identifier (EPU in our case)
 # stratum is the stratum identifier (should take on value of 1 for non-stratified surveys)
-# to be realistic, create same "observed" category as in sim.exp.trials and only consider observed (1) in obs data frame
 
-sim.obs.m.fn <- function(year=c(2020), stratum=1, subunit=1, bull.ratio=25, calf.ratio=30, spike.ratio=21, pop.size=222, covariates="voc", grpsize=c(0,23),
-                         bull.grp.m=1.2, bull.grp.sd=1.6, cow.grp.m=4.3, cow.grp.sd=4.5, calf.grp.m=1.9, calf.grp.sd=2.3, spike.grp.m=0.5, spike.grp.sd=0.8,
-                         n.grps.obs=40, cov.value=c(25,50), prob.sight=c(0.95, 0.70, 0.55, 0.45, 0.30)){
-  bull.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = bull.ratio)
-  calf.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = calf.ratio)
-  spike.grp <- est.sex.age.class.pop(pop.size = pop.size, ratio.value = spike.ratio)
-  cow.grp <- pop.size - (bull.grp + calf.grp + spike.grp)
+# no need to include more than grpsize and voc for obs table
+# obs.sim is a table for all observed animals during sightability surveys
+# this includes collared and uncollared groups
+# this is just who is observed and doesn't include collar info
+# i.e., don't know from obs table if group had collar in it
+
+
+glimpse(obs)
+eff.sim %>% count(EPU) %>% filter(n==4)
+# 10 EPUs surveyd 5 years
+# 9 EPUS surveyed 4 years
+
+sim.obs.m.fn <- function(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N){
   
-  bulls <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=bull.grp, mean=bull.grp.m, sd=bull.grp.sd),0)
-  calves <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=calf.grp, mean=calf.grp.m, sd=calf.grp.sd),0)
-  spikes <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=spike.grp, mean=spike.grp.m, sd=spike.grp.sd),0)
-  cows <- round(rtruncnorm(n=n.grps.obs, a=grpsize[1], b=cow.grp, mean=cow.grp.m, sd=cow.grp.sd),0)
+  # need to figure out how observations per year per EPU
+  # first determine the number of EPUs
+  EPUs.to.use <- eff.sim %>% count(EPU,ID)
+  EPUs.to.use <- EPUs.to.use %>% filter(n==year)
   
-  sim.obs.m <- as.data.frame(cbind(bulls, calves, spikes, cows))
+  sight.true.N.to.use <- sight.true.N %>% filter(EPU %in% EPUs.to.use$EPU)
   
-  # to make more realistic, if 3 or more bulls then a bachelor group
-  sim.obs.m <- sim.obs.m %>% mutate(cows = case_when(bulls >= 3 ~ 0,TRUE ~ cows))
-  sim.obs.m <- sim.obs.m %>% mutate(calves = case_when(bulls >= 3 ~ 0,TRUE ~ calves))
-  sim.obs.m <- sim.obs.m %>% mutate(spikes = case_when(bulls >= 3 ~ 0,TRUE ~ spikes))
+  sight.true.N.to.use$mult.factor <- rtruncnorm(nrow(sight.true.N.to.use), a=0.01, b=0.99, mean=0.05, sd=0.01)
+  sight.true.N.to.use$grps.seen <- round(sight.true.N.to.use$N * sight.true.N.to.use$mult.factor)
   
-  # fill in rest of observation data frame
-  sim.obs.m$year <- rep(year, length.out=n.grps.obs)
-  sim.obs.m$stratum <- stratum
-  sim.obs.m$subunit <- subunit
-  sim.obs.m$total <- sim.obs.m$bulls + sim.obs.m$calves + sim.obs.m$spikes + sim.obs.m$cows
-  sim.obs.m$grpsize <- sim.obs.m$total
+  df1=sight.true.N.to.use
+  df2 <- data.frame(df1[rep(seq_len(dim(df1)[1]),  
+                            with(df1, ifelse(grps.seen > 0 & !is.na(grps.seen), grps.seen, 1))), , drop = FALSE], 
+                    row.names=NULL)
+  obs.sim <- df2 %>% select(Year, ID)
+  colnames(obs.sim) <- c("year","stratum")
+  obs.sim$subunit <- 1
   
-  # create voc category, ranging from 0 to 1 (proportion of veg)
-  sim.obs.m$covariate1 <- round(rgamma(n = n.grps.obs, shape = 4, scale = 8),0)
-  colnames(sim.obs.m)[10] <- covariates[1]
-  sim.obs.m <- sim.obs.m %>% mutate(voc = case_when(voc>100 ~ 100, TRUE ~ voc))
+  # nrow(obs %>% filter(voc<10))/nrow(obs) # ~25% of voc values < 10%
+  # need to simulate the voc to be heavily inflated (1/4) with <10% values
+  # the remaining values an even spread from 10-100
+  inflate.voc <- sample(1:10, round(nrow(obs.sim)*.20), replace = T)
+  normal.voc <- sample(1:100, round(nrow(obs.sim)*.80), replace = T)
+  voc <- c(inflate.voc, normal.voc)
+  obs.sim$voc <- sample(voc)
   
+  # populate group size using half normal distribution
+  field.obs.to.use <- field.obs %>% filter(stratum %in% EPUs.to.use$ID)
+  theta = mean(field.obs.to.use$grpsize, na.rm=T)
+  sim.grpsize <- rhalfnorm(n=nrow(obs.sim), theta)
+  sim.grpsize <- round(sim.grpsize*100)
+  sim.grpsize[sim.grpsize==0] <- 1
+  obs.sim$grpsize <- sim.grpsize
   
-  # create obs category, and then subset dataframe to only the observed groups
-  # use the same criteria for observing as in exp data frame
-  # assume if <=0.25 voc then 0.95 prob of seeing elk
-  # assume if >0.25 voc <=0.50 and group is >=5 then 0.70 prob of seeing elk
-  # assume if >0.25 voc <=0.50 and group is <5 then 0.55 prob of seeing elk
-  # assume if >0.50 voc and group is >=5 then 0.45 prob of seeing elk
-  # assume if >0.50 voc and group is <5 then 0.30 prob of seeing elk
-  sim.obs.m$observed <- as.integer(0) # default to 1 to set up case_when function
-  sim.obs.m <- sim.obs.m %>% mutate(observed = case_when(voc <= cov.value[1] ~ rbinom(1, size=1, prob.sight[1]),
-                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[2]),
-                                                         voc > cov.value[1] & voc <= cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[3]),
-                                                         voc > cov.value[2] & grpsize >=5 ~ rbinom(1, size=1, prob.sight[4]),
-                                                         voc > cov.value[2] & grpsize <5 ~ rbinom(1, size=1, prob.sight[5]), TRUE ~ observed))
+  # summary(obs.sim$grpsize)
+  # summary(field.obs.to.use$grpsize)
   
-  
-  sim.obs.m <- sim.obs.m %>% filter(observed==1)
-  
-  
-  # format to same order as example dataset - only works if only have voc as covariate
-  sim.obs.m <- sim.obs.m[c("year", "stratum", "subunit", "total", "cows", "calves", "bulls", "spikes","voc",
-                           "grpsize")]
-  
-  sim.obs.m <- sim.obs.m %>% mutate(across(1:ncol(sim.obs.m), as.integer))
-  
-  
-  return(sim.obs.m)
+  return(obs.sim)
   
 }
 
-sim.obs.m.fn()
+obs.sim.5years <- sim.obs.m.fn(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
+obs.sim.4years <- sim.obs.m.fn(year=4, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
 
+obs.sim <- rbind(obs.sim.5years, obs.sim.4years)
+obs.sim <- obs.sim %>% arrange(year, stratum)
 
+obs
+as_tibble(obs.sim)
 
 #- can use the default values of simulation for experimental data frame
 
