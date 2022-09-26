@@ -462,6 +462,8 @@ save(mHT_input_sim, file = "input/mHT_input_sim.Rdata")
 ###--- create simulated data for mHT and Bayesian analyses
 # adapting from Tristen's code
 
+load("input/mHT_input_sim.Rdata")
+
 eff=mHT_input_sim$eff
 exp=mHT_input_sim$exp
 obs=mHT_input_sim$obs
@@ -472,47 +474,49 @@ str(mHT_input_sim$obs)
 
 # run the 10 simulations of obs data with Set 1 of exp and the same sampinfo data
 # add on the one layer of the extra exp sets and run all 30 at once with nboot at 10000
-out.mHT_Set1 <- vector('list', 10)
-names(out.mHT_Set1) <- paste0('sim.Set1_', seq_along(out.mHT_Set1))
-for(i in seq_along(out.mHT_Set1)){
+out.mHT <- vector('list', 3)
+for(r in 1:3){
   
-  tempobs <- mHT_input_sim$obs[[i]]
-  
-  out.year <- vector('list', length(year.to.use))
-  
-  for(yr in 1:length(year.to.use)){
-    stratum.to.use <- tempobs %>% filter(year==year.to.use[yr]) %>% count(stratum)
-    stratum.to.use <- as.numeric(stratum.to.use$stratum)
+  out.mHT_Set <- vector('list', 10)
+  names(out.mHT_Set) <- paste0('sim.Set',r,'_', seq_along(out.mHT_Set))
+  for(i in seq_along(out.mHT_Set)){
+    tempobs <- mHT_input_sim$obs[[i]]
+    out.year <- vector('list', length(year.to.use))
     
-    tau.hats <- matrix(NA,length(stratum.to.use), 7)
+    for(yr in 1:length(year.to.use)){
+      stratum.to.use <- tempobs %>% filter(year==year.to.use[yr]) %>% count(stratum)
+      stratum.to.use <- as.numeric(stratum.to.use$stratum)
+      
+      tau.hats <- matrix(NA,length(stratum.to.use), 7)
+      
+      for(st in 1:length(stratum.to.use)) {
+        
+        
+        
+        tmp.year <- Sight.Est(observed~voc,
+                              odat = tempobs %>% filter(year==year.to.use[yr] & stratum==stratum.to.use[st]),
+                              sdat = mHT_input_sim$exp[[r]],
+                              sampinfo = mHT_input_sim$sampinfo %>% filter(year==year.to.use[yr] & stratum==stratum.to.use[st]),
+                              method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
+        temp.summary <- summary(tmp.year)
+        tau.hats[st, 1:5] <- tmp.year$est
+        tau.hats[st, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
+        tau.hats[st, 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
+        
+        
+      }
+      out.year[[yr]] <- tau.hats
+      
+    } 
+    out.mHT_Set[[i]] <- out.year
     
-    for(st in 1:length(stratum.to.use)) {
-      
-      
-      
-      tmp.year <- Sight.Est(observed~voc,
-                            odat = tempobs %>% filter(year==year.to.use[yr] & stratum==stratum.to.use[st]),
-                            sdat = mHT_input_sim$exp[[1]],
-                            sampinfo = mHT_input_sim$sampinfo %>% filter(year==year.to.use[yr] & stratum==stratum.to.use[st]),
-                            method = "Wong", logCI = TRUE, alpha = 0.05, Vm.boot = TRUE, nboot = 10000)
-      temp.summary <- summary(tmp.year)
-      tau.hats[st, 1:5] <- tmp.year$est
-      tau.hats[st, 6] <- as.numeric(gsub(",", "", temp.summary$lcl))
-      tau.hats[st, 7] <- as.numeric(gsub(",", "", temp.summary$ucl))
-      
-      
-    }
-    
-    out.year[[yr]] <- tau.hats
-    
-  } 
-  out.mHT_Set1[[i]] <- out.year
+  }
+  out.mHT[[r]]  <- out.mHT_Set
   
 }
 
 
 
 
-
-saveRDS(out.mHT_Set1,"out.mHT_Set1.RDS")
+saveRDS(out.mHT_Set,"out.mHT_30sims.RDS")
 
