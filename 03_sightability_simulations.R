@@ -459,7 +459,7 @@ save(mHT_input_sim, file = "input/mHT_input_sim.Rdata")
 #####################################################################################
 #####################################################################################
 
-###--- create simulated data for mHT and Bayesian analyses
+###--- run simulated data for mHT
 # adapting from Tristen's code
 
 load("input/mHT_input_sim.Rdata")
@@ -530,7 +530,7 @@ str(out.mHT)
 ## 2. subunit is numbered like stratum in Bayesian
 
 
-## 1.5.1 SIGHT DAT ####
+## SIGHT DAT ####
 
 # Sightability survey data:  64 records
 # s = habitat indicator ()
@@ -567,7 +567,7 @@ glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
 # # voc is most significantly correlated with sightability -> select only voc
 # sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
 
-## 1.3.4 OPER DAT ####
+## OPER DAT ####
 
 # Operational survey data:  4380 records
 # (includes observed and augmented data for the annual surveys from 2014:2022 combined).
@@ -630,7 +630,7 @@ oper.dat[[i]] <- rbind(oper.dat[[i]], oper.dat.aug[[i]]) %>%
 
 glimpse(oper.dat) # check
 
-## 1.3.5 PLOT DAT ####
+## PLOT DAT ####
 
 # Plot-level information data: 86 records (one for each of the plots sampled between 2014 and 2022)
 # h.plots = stratum to which the plot belonged (1, 2, 3 correspond to the EPU)
@@ -646,7 +646,7 @@ plot.dat <- oper.dat[[1]] %>%
 
 glimpse(plot.dat)
 
-## 1.3.6 SCALAR DAT ####
+## SCALAR DAT ####
 
 #   Scalars:
 #   R = number of sightability trials (changes depending on simulation set - 3 sets)
@@ -699,8 +699,76 @@ for(x in 1:3){
   scalar.sums.full[[x]] <- scalar.sums
 }
 
-## 1.3.7 SAVE DATA ####
+## Save Bayesian data ####
 save(list = c("sight.dat", "oper.dat", "plot.dat", "scalar.dat.full", "eff", "scalar.sums.full"), file = "input/jags_30sims_input.Rdata")
 rm(list = ls())
 
+#####################################################################################
+#####################################################################################
+
+###--- run simulated data for Bayesian analyses
+# adapting from Tristen's code
+
+load("input/jags_30sims_input.Rdata")
+
+# RUN MODEL ####
+# specify initial values
+inits <-  function() list(bo=runif(1), bvoc=runif(1))
+
+# Parameters monitored
+params <- c("bo", "bvoc", "tau.hat")
+
+# MCMC settings
+ni <- 100 # build to 40000
+nt <- 2     # 50% thinning rate (discard every 2nd iteration)
+nb <- 50  # build to 20000
+nc <- 3
+
+
+# length(sight.dat) #3
+# length(oper.dat)  #10
+# length(scalar.sums.full) #3 by 10
+# length(scalar.dat.full)  #3 by 10
+
+# i <- 1
+# 
+bundle.hy <- as.character()
+  for(i in 1:(ncol(scalar.dat.full[[x]][[y]])-3)){
+  bundle.hy[i] <-
+    paste(colnames(scalar.dat.full[[x]][[y]])[i],
+          "=scalar.dat.full[[x]][[y]]$",
+          colnames(scalar.dat.full[[x]][[y]])[i],
+          ", ",
+          sep = "")
+  }
+# # run and copy the output to paste into data bundle (don't forget to remove quotes and final comma)
+paste0(bundle.hy, collapse = "")
+
+
+# Bundle data
+jags_30sims_output <- vector('list',3)
+for(x in 1:3){
+  tmp.jags <- vector('list',10)
+  for(y in 1:10){
+    
+    bundle.dat <- list(x.tilde=sight.dat[[x]]$x.tilde, z.tilde=sight.dat[[x]]$z.tilde, #sight.dat
+                       x=oper.dat[[y]]$x+.000001, ym1=oper.dat[[y]]$ym1, h=oper.dat[[y]]$h, q=oper.dat[[y]]$q, z=oper.dat[[y]]$z, yr=oper.dat[[y]]$yr, subunits=oper.dat[[y]]$subunits, # oper.dat
+                       h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
+                       R=scalar.dat.full[[x]][[y]]$R, Ngroups=scalar.dat.full[[x]][[y]]$Ngroups, Nsubunits.yr=scalar.dat.full[[x]][[y]]$Nsubunits.yr, scalars=scalar.sums.full[[x]][[y]])#,#scalar.dat
+                       # h3y1=scalar.dat.full[[x]][[y]]$h3y1, h5y1=scalar.dat.full[[x]][[y]]$h5y1, h7y1=scalar.dat.full[[x]][[y]]$h7y1, h8y1=scalar.dat.full[[x]][[y]]$h8y1, h10y1=scalar.dat.full[[x]][[y]]$h10y1, h11y1=scalar.dat.full[[x]][[y]]$h11y1, h12y1=scalar.dat.full[[x]][[y]]$h12y1, h13y1=scalar.dat.full[[x]][[y]]$h13y1, h14y1=scalar.dat.full[[x]][[y]]$h14y1, h19y1=scalar.dat.full[[x]][[y]]$h19y1, h1y2=scalar.dat.full[[x]][[y]]$h1y2, h2y2=scalar.dat.full[[x]][[y]]$h2y2, h4y2=scalar.dat.full[[x]][[y]]$h4y2, h6y2=scalar.dat.full[[x]][[y]]$h6y2, h9y2=scalar.dat.full[[x]][[y]]$h9y2, h15y2=scalar.dat.full[[x]][[y]]$h15y2, h16y2=scalar.dat.full[[x]][[y]]$h16y2, h17y2=scalar.dat.full[[x]][[y]]$h17y2, h18y2=scalar.dat.full[[x]][[y]]$h18y2, h3y3=scalar.dat.full[[x]][[y]]$h3y3, h5y3=scalar.dat.full[[x]][[y]]$h5y3, h7y3=scalar.dat.full[[x]][[y]]$h7y3, h8y3=scalar.dat.full[[x]][[y]]$h8y3, h10y3=scalar.dat.full[[x]][[y]]$h10y3, h11y3=scalar.dat.full[[x]][[y]]$h11y3, h12y3=scalar.dat.full[[x]][[y]]$h12y3, h13y3=scalar.dat.full[[x]][[y]]$h13y3, h14y3=scalar.dat.full[[x]][[y]]$h14y3, h19y3=scalar.dat.full[[x]][[y]]$h19y3, h1y4=scalar.dat.full[[x]][[y]]$h1y4, h2y4=scalar.dat.full[[x]][[y]]$h2y4, h4y4=scalar.dat.full[[x]][[y]]$h4y4, h6y4=scalar.dat.full[[x]][[y]]$h6y4, h9y4=scalar.dat.full[[x]][[y]]$h9y4, h15y4=scalar.dat.full[[x]][[y]]$h15y4, h16y4=scalar.dat.full[[x]][[y]]$h16y4, h17y4=scalar.dat.full[[x]][[y]]$h17y4, h18y4=scalar.dat.full[[x]][[y]]$h18y4, h3y5=scalar.dat.full[[x]][[y]]$h3y5, h5y5=scalar.dat.full[[x]][[y]]$h5y5, h7y5=scalar.dat.full[[x]][[y]]$h7y5, h8y5=scalar.dat.full[[x]][[y]]$h8y5, h10y5=scalar.dat.full[[x]][[y]]$h10y5, h11y5=scalar.dat.full[[x]][[y]]$h11y5, h12y5=scalar.dat.full[[x]][[y]]$h12y5, h13y5=scalar.dat.full[[x]][[y]]$h13y5, h14y5=scalar.dat.full[[x]][[y]]$h14y5, h19y5=scalar.dat.full[[x]][[y]]$h19y5, h1y6=scalar.dat.full[[x]][[y]]$h1y6, h2y6=scalar.dat.full[[x]][[y]]$h2y6, h4y6=scalar.dat.full[[x]][[y]]$h4y6, h6y6=scalar.dat.full[[x]][[y]]$h6y6, h9y6=scalar.dat.full[[x]][[y]]$h9y6, h15y6=scalar.dat.full[[x]][[y]]$h15y6, h16y6=scalar.dat.full[[x]][[y]]$h16y6, h17y6=scalar.dat.full[[x]][[y]]$h17y6, h18y6=scalar.dat.full[[x]][[y]]$h18y6, h3y7=scalar.dat.full[[x]][[y]]$h3y7, h5y7=scalar.dat.full[[x]][[y]]$h5y7, h7y7=scalar.dat.full[[x]][[y]]$h7y7, h8y7=scalar.dat.full[[x]][[y]]$h8y7, h10y7=scalar.dat.full[[x]][[y]]$h10y7, h11y7=scalar.dat.full[[x]][[y]]$h11y7, h12y7=scalar.dat.full[[x]][[y]]$h12y7, h13y7=scalar.dat.full[[x]][[y]]$h13y7, h14y7=scalar.dat.full[[x]][[y]]$h14y7, h19y7=scalar.dat.full[[x]][[y]]$h19y7, h1y8=scalar.dat.full[[x]][[y]]$h1y8, h2y8=scalar.dat.full[[x]][[y]]$h2y8, h4y8=scalar.dat.full[[x]][[y]]$h4y8, h6y8=scalar.dat.full[[x]][[y]]$h6y8, h9y8=scalar.dat.full[[x]][[y]]$h9y8, h15y8=scalar.dat.full[[x]][[y]]$h15y8, h16y8=scalar.dat.full[[x]][[y]]$h16y8, h17y8=scalar.dat.full[[x]][[y]]$h17y8, h18y8=scalar.dat.full[[x]][[y]]$h18y8, h1y9=scalar.dat.full[[x]][[y]]$h1y9, h8y9=scalar.dat.full[[x]][[y]]$h8y9, h9y9=scalar.dat.full[[x]][[y]]$h9y9, h13y9=scalar.dat.full[[x]][[y]]$h13y9, h14y9=scalar.dat.full[[x]][[y]]$h14y9, h15y9=scalar.dat.full[[x]][[y]]$h15y9, h16y9=scalar.dat.full[[x]][[y]]$h16y9, h17y9=scalar.dat.full[[x]][[y]]$h17y9, h18y9=scalar.dat.full[[x]][[y]]$h18y9, h19y9=scalar.dat.full[[x]][[y]]$h19y9)
+    # Run model
+    
+    glimpse(bundle.dat)
+    
+    tmp.jags[[y]] <- jags(bundle.dat, inits, params, "input/beta_binom_model_elk2022_updated.txt", nc, ni, nb, nt)
+  }
+  jags_30sims_input[[i]] <-  tmp.jags
+}
+
+# setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
+
+save("jags_output", "scalar.dat", file="out/03_Bayesian_analysis_jags_output.RData")
+save("eff",file="out/03_Bayesian_analysis_jags_effort.RData")
+
+rm(list = ls())
 
