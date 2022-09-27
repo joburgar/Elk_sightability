@@ -99,7 +99,7 @@ R_version <- paste0("R-",version$major,".",version$minor)
 .libPaths(paste0("C:/Program Files/R/",R_version,"/library")) # to ensure reading/writing libraries from C drive
 tz = Sys.timezone() # specify timezone in BC
 
-# 1.1 LOAD PACKAGES ####
+# LOAD PACKAGES ####
 
 list.of.packages <- c("tidyverse", "fdrtool","sf", "rgdal","readxl", "Cairo", "rjags","coda", "SightabilityModel","truncnorm",  "xtable", "R2jags")
 # Check you have them and load them
@@ -107,7 +107,7 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
-# 1.2 Create functions ####
+# Create functions ####
 name_fixer <- function(x){
   output <- case_when(
     grepl("Rainy", x, ignore.case = TRUE) ~ "Rainy-Gray",
@@ -143,7 +143,7 @@ standard_survey <- function(x){
 }
 
 
-# 1.1 Load subjective sightability data  ####
+# Load subjective sightability data  ####
 sub.sight.all <- read_excel("SurveyData_ SPRING_2022.xls", 
                        sheet = "2022 Summary", range = "A2:AK29", 
                        col_types = NULL) %>%
@@ -475,7 +475,7 @@ str(mHT_input_sim$obs)
 # run the 10 simulations of obs data with Set 1 of exp and the same sampinfo data
 # add on the one layer of the extra exp sets and run all 30 at once with nboot at 10000
 out.mHT <- vector('list', 3)
-for(r in 1:3){
+for(r in 1:length(mHT_input_sim$exp)){
   
   out.mHT_Set <- vector('list', 10)
   names(out.mHT_Set) <- paste0('sim.Set',r,'_', seq_along(out.mHT_Set))
@@ -512,11 +512,195 @@ for(r in 1:3){
     
   }
   out.mHT[[r]]  <- out.mHT_Set
+}
+
+saveRDS(out.mHT,"out/mHT_30sims.RDS")
+str(out.mHT)
+
+#####################################################################################
+#####################################################################################
+
+###--- adapted simulated data for Bayesian analyses
+# adapting from Tristen's code
+
+# BAYESIAN DATA ####
+
+## Main differences between bayesian and mHT datasets:
+## 1. VOC is a decimal in Bayesian
+## 2. subunit is numbered like stratum in Bayesian
+
+
+## 1.5.1 SIGHT DAT ####
+
+# Sightability survey data:  64 records
+# s = habitat indicator ()
+# x = visual obstruction measurements associated with the test trial data used to develop the sightability model
+# a = activity indicator (0 if bedded, 1 if standing/moving)
+# z = detection indicator (1 if the group was observed, 0 otherwise)
+# t = group size
+
+sight.dat <- vector('list',3)
+for(i in 1:length(exp)){
+  tmp.exp <- exp[[i]]
+  tmp.sight.dat <- tmp.exp %>%
+    mutate(x.tilde = as.double(voc*.01),
+           z.tilde = as.double(observed)) %>%
+    select(x.tilde, z.tilde)
   
+  sight.dat[[i]] <- tmp.sight.dat
+}
+
+glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
+
+### from Tristen's original work - testing correlations ####
+# sight.dat[[3]] %>% group_by(z.tilde) %>% summarize(mean = mean(x.tilde))
+# 
+# x.z <- cor.test(sight.dat[[3]]$z.tilde, sight.dat[[3]]$x.tilde, method="pearson")
+# t.z <- cor.test(sight.dat[[3]]$z.tilde, sight.dat[[3]]$t, method="pearson")
+# 
+# Correlation <- as.data.frame(matrix(NA, 2, 3))
+# Correlation[1,] <- c("VOC", x.z$estimate, x.z$p.value)
+# Correlation[2,] <- c("Group size", t.z$estimate, t.z$p.value)
+# colnames(Correlation) <- c("Variable", "Correlation", "p")
+# Correlation
+# 
+# # voc is most significantly correlated with sightability -> select only voc
+# sight.dat <- sight.dat %>% select(x.tilde, z.tilde)
+
+## 1.3.4 OPER DAT ####
+
+# Operational survey data:  4380 records
+# (includes observed and augmented data for the annual surveys from 2014:2022 combined).
+# Augmented data records have NA (missing) for x, y, q.
+# x = visual obstruction measurements
+# ym1 = y-1, where y = observed group size
+# h = stratum identifier (all same stratum)
+# q = indicator variable that represents whether the group belongs to the study population (equal to 1 for all observed groups and NA for all augmented groups).
+# z = detection indicator (equal to 1 if the group was observed during the operational survey and 0 otherwise)
+# subunits = unique plot identifier (for all sampled plots).
+# yr = year of observation (1 = 2014...9 = 2022)
+
+# non-augmented data
+oper.dat <- vector('list',10)
+for(i in 1:length(obs)){
+  tmp.oper.dat <- obs[[i]] %>%
+    transmute(x = round(as.double(voc*.01), 2),
+              ym1 = total-1,
+              h = as.double(stratum),
+              q = 1,
+              z = 1,
+              yr = recode(year, '2014'=1, '2015'=2, '2016'=3, '2017'=4, '2018'=5, '2019'=6, '2020'=7, '2021'=8, '2022'=9), 
+              subunits = as.double(subunit)) %>%
+    glimpse()
+  oper.dat[[i]] <- tmp.oper.dat
+}
+
+str(oper.dat)
+
+# augmented data
+# need to determine max m of each h
+aug <- vector('list',10)
+for(i in 1:length(oper.dat)){
+  aug.list <- oper.dat[[i]] %>%
+    group_by(yr, h) %>%
+    summarize(m = n()) %>%
+    ungroup() %>%
+    group_by(h) %>%
+    summarize(yr = yr,
+              m = m,
+              m.max = max(m)) %>%
+    ungroup() %>%
+    mutate(b = 5*m.max,
+           aug = b-m)
+  aug[[i]] <- aug.list
+}
+
+oper.dat.aug <- vector('list',10)
+for(i in 1:length(oper.dat)){
+tmp.oper.dat.aug <- aug[[i]][rep(1:nrow(aug[[i]]), aug[[i]]$aug),] %>%
+  mutate(x = NA, ym1 = NA, h = h, q = NA, z = 0, yr = yr, subunits = h, .keep="none") %>%
+  ungroup()
+oper.dat.aug[[i]] <- tmp.oper.dat.aug
+}
+
+for(i in 1:length(oper.dat)){
+oper.dat[[i]] <- rbind(oper.dat[[i]], oper.dat.aug[[i]]) %>%
+  arrange(yr, h, q)
+}
+
+glimpse(oper.dat) # check
+
+## 1.3.5 PLOT DAT ####
+
+# Plot-level information data: 86 records (one for each of the plots sampled between 2014 and 2022)
+# h.plots = stratum to which the plot belonged (1, 2, 3 correspond to the EPU)
+# yr.plots = year the plot was sampled (1 = 2014, 9= 2022)
+# same for each simulation, so just need one (not a list of them)
+plot.dat <- oper.dat[[1]] %>%
+  select(yr, h) %>%
+  distinct() %>%
+  mutate(h.plots = h, 
+         yr.plots = yr) %>%
+  select(h.plots, yr.plots) %>%
+  arrange(yr.plots, h.plots)
+
+glimpse(plot.dat)
+
+## 1.3.6 SCALAR DAT ####
+
+#   Scalars:
+#   R = number of sightability trials (changes depending on simulation set - 3 sets)
+# 
+#   Ngroups = number of observed and augmented groups for the 2014 to 2022 annual operational surveys
+# 
+#   Nsubunits.yr = total number of plots sampled between 2014 and 2022  = 86 
+# 
+#   ny1 = number of groups associated with the annual survey in 2014 (year 1)
+
+scalar.dat.full <- vector('list',3)
+for(x in 1:length(sight.dat)){
+  
+  scalar.dat <- vector('list',10)
+  for(y in 1:length(oper.dat)){
+    
+    tmp.scalar.dat <- as.data.frame(matrix(NA, 1, 3))
+    colnames(tmp.scalar.dat) <- c("R", "Ngroups", "Nsubunits.yr")
+    
+    tmp.scalar.dat <- as.data.frame(matrix(NA, 1, (nrow(plot.dat))))
+    for(i in 1:nrow(plot.dat)){
+      tmp.scalar.dat[,i] <- as.double(nrow(oper.dat[[y]] %>% filter(yr == plot.dat$yr.plots[i], h == plot.dat$h.plots[i])))
+      colnames(tmp.scalar.dat)[i] <- paste("h", plot.dat$h.plots[i], "y", plot.dat$yr.plots[i], sep = "")
+    }
+    
+    tmp.scalar.dat <- tmp.scalar.dat %>%
+      mutate(R = as.double(nrow(sight.dat[[x]])),
+             Ngroups = as.double(nrow(oper.dat[[y]])),
+             Nsubunits.yr = as.double(nrow(plot.dat)))
+    
+    scalar.dat[[y]]<- tmp.scalar.dat
+  }
+  scalar.dat.full[[x]] <- scalar.dat
 }
 
 
+# Need scalar.sums to ease modelling
+scalar.sums.full <- vector('list',3)
+for(x in 1:3){
+  scalar.sums <- vector('list',10)
+  for(y in 1:10){
+    tmp.scalar.sums <- matrix(NA, nrow(plot.dat), 2)
+    for (i in 1:nrow(plot.dat)){
+      t <- i-1
+      tmp.scalar.sums[i, 1] <- sum(scalar.dat.full[[x]][[y]][,0:t], 1)
+      tmp.scalar.sums[i, 2] <- sum(scalar.dat.full[[x]][[y]][,0:i])
+    }
+    scalar.sums[[y]] <- tmp.scalar.sums
+  }
+  scalar.sums.full[[x]] <- scalar.sums
+}
 
+## 1.3.7 SAVE DATA ####
+save(list = c("sight.dat", "oper.dat", "plot.dat", "scalar.dat.full", "eff", "scalar.sums.full"), file = "input/jags_30sims_input.Rdata")
+rm(list = ls())
 
-saveRDS(out.mHT_Set,"out.mHT_30sims.RDS")
 
