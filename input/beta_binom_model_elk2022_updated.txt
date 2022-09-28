@@ -1,37 +1,37 @@
 model
 {
-    bo ~ dnorm(0.00000E+00, 0.1)
-    bvoc ~ dnorm(0.00000E+00, 0.1)
+    bo ~ dnorm(0, 1)
+    bvoc ~ dnorm(0, 1)
     for (i in 1:R) {
         logitg[i] <- bo + bvoc * x.tilde[i]
         g.tilde[i] <- exp(logitg[i])/(1 + exp(logitg[i]))
         z.tilde[i] ~ dbern(g.tilde[i])
     }
-    for (j in 1:86) {
-        for (i in 1:1) {
-            alpha.voc[i, j] ~ dgamma(1, 0.01)
-            beta.voc[i, j] ~ dgamma(1, 0.01)
+    for (j in 1:9) {
+        for (i in 1:20) {
+            alpha.voc[i, j] ~ dgamma(1, 0.1)
+            beta.voc[i, j] ~ dgamma(1, 0.1)
         }
     }
     for (j in 1:Ngroups) {
         x[j] ~ dbeta(alpha.voc[h[j], yr[j]], beta.voc[h[j], yr[j]])  
-            T(0.00000E+00, 0.999)
+            T(0.000001, 0.999)
     }
-    for (k in 1:86) {
-        for (i in 1:1) {
-            loglam[i, k] ~ dnorm(0.00000E+00, 0.1)  T(-10, 10)
+    for (k in 1:9) {
+        for (i in 1:20) {
+            loglam[i, k] ~ dnorm(0.1, 1)  T(-10, 10)
             lam[i, k] <- exp(loglam[i, k])
         }
     }
-    for (k in 1:86) {
-        for (i in 1:1) {
-            a[i, k] ~ dgamma(1, 0.01)
-            b[i, k] ~ dgamma(1, 0.01)
+    for (k in 1:9) {
+        for (i in 1:20) {
+            a[i, k] ~ dgamma(1, 0.1)
+            b[i, k] ~ dgamma(1, 0.1)
         }
     }
     for (i in 1:Nsubunits.yr) {
         psi[i] ~ dbeta(a[h.plots[i], yr.plots[i]], b[h.plots[i], 
-            yr.plots[i]])  T(1.00000E-04, 0.99)
+            yr.plots[i]])  T(0.000001, 0.999)
     }
     for (i in 1:Ngroups) {
         q[i] ~ dbin(psi[subunits[i]], 1)
