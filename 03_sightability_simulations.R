@@ -730,22 +730,9 @@ nc <- 3
 # length(scalar.sums.full) #3 by 10
 # length(scalar.dat.full)  #3 by 10
 
-# i <- 1
-# 
-bundle.hy <- as.character()
-  for(i in 1:(ncol(scalar.dat.full[[x]][[y]])-3)){
-  bundle.hy[i] <-
-    paste(colnames(scalar.dat.full[[x]][[y]])[i],
-          "=scalar.dat.full[[x]][[y]]$",
-          colnames(scalar.dat.full[[x]][[y]])[i],
-          ", ",
-          sep = "")
-  }
-# # run and copy the output to paste into data bundle (don't forget to remove quotes and final comma)
-paste0(bundle.hy, collapse = "")
-
 
 # Bundle data
+x=1; y=1
 jags_30sims_output <- vector('list',3)
 for(x in 1:3){
   tmp.jags <- vector('list',10)
@@ -753,13 +740,16 @@ for(x in 1:3){
     
     bundle.dat <- list(x.tilde=sight.dat[[x]]$x.tilde, z.tilde=sight.dat[[x]]$z.tilde, #sight.dat
                        x=oper.dat[[y]]$x+.000001, ym1=oper.dat[[y]]$ym1, h=oper.dat[[y]]$h, q=oper.dat[[y]]$q, z=oper.dat[[y]]$z, yr=oper.dat[[y]]$yr, subunits=oper.dat[[y]]$subunits, # oper.dat
-                       h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot_dat
-                       R=scalar.dat.full[[x]][[y]]$R, Ngroups=scalar.dat.full[[x]][[y]]$Ngroups, Nsubunits.yr=scalar.dat.full[[x]][[y]]$Nsubunits.yr, scalars=scalar.sums.full[[x]][[y]])#,#scalar.dat
-                       # h3y1=scalar.dat.full[[x]][[y]]$h3y1, h5y1=scalar.dat.full[[x]][[y]]$h5y1, h7y1=scalar.dat.full[[x]][[y]]$h7y1, h8y1=scalar.dat.full[[x]][[y]]$h8y1, h10y1=scalar.dat.full[[x]][[y]]$h10y1, h11y1=scalar.dat.full[[x]][[y]]$h11y1, h12y1=scalar.dat.full[[x]][[y]]$h12y1, h13y1=scalar.dat.full[[x]][[y]]$h13y1, h14y1=scalar.dat.full[[x]][[y]]$h14y1, h19y1=scalar.dat.full[[x]][[y]]$h19y1, h1y2=scalar.dat.full[[x]][[y]]$h1y2, h2y2=scalar.dat.full[[x]][[y]]$h2y2, h4y2=scalar.dat.full[[x]][[y]]$h4y2, h6y2=scalar.dat.full[[x]][[y]]$h6y2, h9y2=scalar.dat.full[[x]][[y]]$h9y2, h15y2=scalar.dat.full[[x]][[y]]$h15y2, h16y2=scalar.dat.full[[x]][[y]]$h16y2, h17y2=scalar.dat.full[[x]][[y]]$h17y2, h18y2=scalar.dat.full[[x]][[y]]$h18y2, h3y3=scalar.dat.full[[x]][[y]]$h3y3, h5y3=scalar.dat.full[[x]][[y]]$h5y3, h7y3=scalar.dat.full[[x]][[y]]$h7y3, h8y3=scalar.dat.full[[x]][[y]]$h8y3, h10y3=scalar.dat.full[[x]][[y]]$h10y3, h11y3=scalar.dat.full[[x]][[y]]$h11y3, h12y3=scalar.dat.full[[x]][[y]]$h12y3, h13y3=scalar.dat.full[[x]][[y]]$h13y3, h14y3=scalar.dat.full[[x]][[y]]$h14y3, h19y3=scalar.dat.full[[x]][[y]]$h19y3, h1y4=scalar.dat.full[[x]][[y]]$h1y4, h2y4=scalar.dat.full[[x]][[y]]$h2y4, h4y4=scalar.dat.full[[x]][[y]]$h4y4, h6y4=scalar.dat.full[[x]][[y]]$h6y4, h9y4=scalar.dat.full[[x]][[y]]$h9y4, h15y4=scalar.dat.full[[x]][[y]]$h15y4, h16y4=scalar.dat.full[[x]][[y]]$h16y4, h17y4=scalar.dat.full[[x]][[y]]$h17y4, h18y4=scalar.dat.full[[x]][[y]]$h18y4, h3y5=scalar.dat.full[[x]][[y]]$h3y5, h5y5=scalar.dat.full[[x]][[y]]$h5y5, h7y5=scalar.dat.full[[x]][[y]]$h7y5, h8y5=scalar.dat.full[[x]][[y]]$h8y5, h10y5=scalar.dat.full[[x]][[y]]$h10y5, h11y5=scalar.dat.full[[x]][[y]]$h11y5, h12y5=scalar.dat.full[[x]][[y]]$h12y5, h13y5=scalar.dat.full[[x]][[y]]$h13y5, h14y5=scalar.dat.full[[x]][[y]]$h14y5, h19y5=scalar.dat.full[[x]][[y]]$h19y5, h1y6=scalar.dat.full[[x]][[y]]$h1y6, h2y6=scalar.dat.full[[x]][[y]]$h2y6, h4y6=scalar.dat.full[[x]][[y]]$h4y6, h6y6=scalar.dat.full[[x]][[y]]$h6y6, h9y6=scalar.dat.full[[x]][[y]]$h9y6, h15y6=scalar.dat.full[[x]][[y]]$h15y6, h16y6=scalar.dat.full[[x]][[y]]$h16y6, h17y6=scalar.dat.full[[x]][[y]]$h17y6, h18y6=scalar.dat.full[[x]][[y]]$h18y6, h3y7=scalar.dat.full[[x]][[y]]$h3y7, h5y7=scalar.dat.full[[x]][[y]]$h5y7, h7y7=scalar.dat.full[[x]][[y]]$h7y7, h8y7=scalar.dat.full[[x]][[y]]$h8y7, h10y7=scalar.dat.full[[x]][[y]]$h10y7, h11y7=scalar.dat.full[[x]][[y]]$h11y7, h12y7=scalar.dat.full[[x]][[y]]$h12y7, h13y7=scalar.dat.full[[x]][[y]]$h13y7, h14y7=scalar.dat.full[[x]][[y]]$h14y7, h19y7=scalar.dat.full[[x]][[y]]$h19y7, h1y8=scalar.dat.full[[x]][[y]]$h1y8, h2y8=scalar.dat.full[[x]][[y]]$h2y8, h4y8=scalar.dat.full[[x]][[y]]$h4y8, h6y8=scalar.dat.full[[x]][[y]]$h6y8, h9y8=scalar.dat.full[[x]][[y]]$h9y8, h15y8=scalar.dat.full[[x]][[y]]$h15y8, h16y8=scalar.dat.full[[x]][[y]]$h16y8, h17y8=scalar.dat.full[[x]][[y]]$h17y8, h18y8=scalar.dat.full[[x]][[y]]$h18y8, h1y9=scalar.dat.full[[x]][[y]]$h1y9, h8y9=scalar.dat.full[[x]][[y]]$h8y9, h9y9=scalar.dat.full[[x]][[y]]$h9y9, h13y9=scalar.dat.full[[x]][[y]]$h13y9, h14y9=scalar.dat.full[[x]][[y]]$h14y9, h15y9=scalar.dat.full[[x]][[y]]$h15y9, h16y9=scalar.dat.full[[x]][[y]]$h16y9, h17y9=scalar.dat.full[[x]][[y]]$h17y9, h18y9=scalar.dat.full[[x]][[y]]$h18y9, h19y9=scalar.dat.full[[x]][[y]]$h19y9)
+                       h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot.dat
+                       R=scalar.dat.full[[x]][[y]]$R, Ngroups=scalar.dat.full[[x]][[y]]$Ngroups, Nsubunits.yr=scalar.dat.full[[x]][[y]]$Nsubunits.yr, scalars=scalar.sums.full[[x]][[y]]) # scalar.dat
     # Run model
     
-    glimpse(bundle.dat)
-    
+    # glimpse(bundle.dat)
+    # summary(bundle.dat$x)
+    # bundle.dat$subunits[2722]
+    # View(bundle.dat)
+    # dnorm(0, 0.1)
+      
     tmp.jags[[y]] <- jags(bundle.dat, inits, params, "input/beta_binom_model_elk2022_updated.txt", nc, ni, nb, nt)
   }
   jags_30sims_input[[i]] <-  tmp.jags
