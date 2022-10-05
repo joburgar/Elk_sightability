@@ -13,7 +13,7 @@
 #####################################################################################
 # 03_sightability_simulations.R
 # script to simulate sightability models to inform sightabilty survey study design
-# written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 9-Mar-2021
+# written by Joanna Burgar (Joanna.Burgar@gov.bc.ca) - 9-Mar-2021, modified 3-Oct-2022
 #####################################################################################
 
 #####################################################################################
@@ -101,7 +101,7 @@ tz = Sys.timezone() # specify timezone in BC
 
 # LOAD PACKAGES ####
 
-list.of.packages <- c("tidyverse", "fdrtool","sf", "rgdal","readxl", "Cairo", "rjags","coda", "SightabilityModel","truncnorm",  "xtable", "R2jags")
+list.of.packages <- c("tidyverse", "fdrtool","sf", "rgdal","readxl", "Cairo", "rjags","coda", "SightabilityModel","truncnorm",  "xtable", "R2jags","data.table","mcmcOutput")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -149,19 +149,13 @@ sub.sight.all <- read_excel("SurveyData_ SPRING_2022.xls",
                        col_types = NULL) %>%
   type_convert() %>% glimpse()
 colnames(sub.sight.all)[1] <- "EPU"
-colnames(sub.sight.all)[26:34] <- c("Sub_2014","Sub_2015","Sub_2016","Sub_2017","Sub_2018","Sub_2019","Sub_2020","Sub_2021", "Sub_2022")
+colnames(sub.sight.all)[32:33] <- c("Sub_2020","Sub_2021")
 sub.sight <- sub.sight.all %>% select(EPU, starts_with("Sub"))
 
-# to be more realistic, assume that each EPU is sampled every 2nd year
+# assume that each EPU is sampled every second year
 index1 <- seq(1,nrow(sub.sight),by=2)
 index2 <- seq(2,nrow(sub.sight),by=2)
 #Replace with NA
-sub.sight$Sub_2014[index2] <- NA
-sub.sight$Sub_2015[index1] <- NA
-sub.sight$Sub_2016[index2] <- NA
-sub.sight$Sub_2017[index1] <- NA
-sub.sight$Sub_2018[index2] <- NA
-sub.sight$Sub_2019[index1] <- NA
 sub.sight$Sub_2020[index2] <- NA
 sub.sight$Sub_2021[index1] <- NA
 
@@ -170,12 +164,13 @@ sight.true.N$Year <- as.factor(str_replace(sight.true.N$Year, "Sub_", ""))
 sight.true.N <- sight.true.N %>% arrange(Year, EPU)
 sight.true.N$EPU <- name_fixer(sight.true.N$EPU)
 
+
 # load real data (2021/2022) for ideas on group size, etc
 load("input/mHT_input.Rdata")
 # eff
 # sampinfo
 # exp
-# obs %>% group_by(year) %>% count(stratum)
+# obs %>% group_by(year) %>% count(subunit)
 
 
 ###################################################################################
@@ -183,23 +178,25 @@ load("input/mHT_input.Rdata")
 
 # subset simulation data to the same EPUs in the real data analysis (19)
 sight.true.N <- sight.true.N %>% filter(EPU %in% eff$Unit)
+sight.true.N %>% count(Year) # 19 EPUs sampled for over 2 years
 
 # create the effort table for the simulations
 # use the exact same area_surveyed values and just updating year
 # arranged in the order of Year, ID (same ID )
 eff.sim <- left_join(sight.true.N %>% select(-N), eff %>% select(-year), by=c("EPU"="Unit"))
 eff.sim <- eff.sim[c("EPU", "area_surveyed","area_surveyed_km","Year","ID")]
+eff.sim <- eff.sim %>% arrange(Year,ID)
 as.data.frame(eff.sim %>% arrange(Year,ID))
 
 ###################################################################################
 ### sampinfo.sim
-
 sampinfo # keeping this consistent between years
 sampinfo.sim <- eff.sim %>% select(ID, Year)
 sampinfo.sim <- left_join(sampinfo.sim, sampinfo %>% select(-year), by=c("ID"="stratum"))
 colnames(sampinfo.sim)[1:2] <- c("stratum","year")
 sampinfo.sim <- sampinfo.sim[names(sampinfo)]
 sampinfo.sim <- sampinfo.sim %>% arrange(year, stratum)
+
 
 ###################################################################################
 ### exp.sim
@@ -247,24 +244,21 @@ collars.per.EPU <- collars.per.EPU %>% arrange(ID)
 
 # need to make a matrix / dataframe that is the same length (nrow) as number of collars * number of surveys
 sum(collars.per.EPU$n)
-eff.sim %>% count(Year)
-eff.sim %>% filter(Year=="2022")
+# consider that up to 75 collars could be sighted each year if sightablity surveys were done for all 19 EPUs
+# have data from 3 sets of sightability trials = 75, 150, and 225
 
-nrow(eff.sim)
-# number of years = 9, 4 sets of surveys plus the last year with 10 EPUs
-# so can simply use the sum of collars.per.EPU$n * 4 plus the sum of collars.per.EPU$n in 9th year as length
-tmp1 <- sum(collars.per.EPU$n)*4
-tmp2 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2022",]$EPU) %>% summarise(sum(n)))
+exp.sim <- as.data.frame(matrix(NA, nrow=sum(collars.per.EPU$n)*3, ncol=4))
+colnames(exp.sim) <- c("year","observed","voc","grpsize")
+
+# now populate the year, the first set of EPUs surveyed (even years) has 43 collars in total and second set has 32
+tmp1 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2020",]$EPU) %>% summarise(sum(n)))
+tmp2 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2021",]$EPU) %>% summarise(sum(n)))
 
 exp.sim <- as.data.frame(matrix(NA, nrow=tmp1+tmp2, ncol=4))
 colnames(exp.sim) <- c("year","observed","voc","grpsize")
 
 # now populate the year, the first set of EPUs surveyed (even years) has 43 collars in total and second set has 32
-tmp3 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2014",]$EPU) %>% summarise(sum(n)))
-tmp4 <- as.numeric(collars.per.EPU %>% filter(EPU %in% eff.sim[eff.sim$Year=="2015",]$EPU) %>% summarise(sum(n)))
-exp.sim$year <- as.numeric(c(rep(c("2014","2016","2018","2020"), each=tmp3), 
-                             rep(c("2015","2017","2019","2021"), each=tmp4), 
-                             rep("2022", each=tmp2)))
+exp.sim$year <- as.numeric(c(rep(2020, each=tmp1),rep(2021, each=tmp2)))
 exp.sim <- arrange(exp.sim, year)
 
 # plot the voc and total animals observed data, to get a sense for simulations
@@ -365,18 +359,15 @@ hist(rnorm(100, mean=10, sd=1.6))
 # this is just who is observed and doesn't include collar info
 # i.e., don't know from obs table if group had collar in it
 
-
 glimpse(obs)
-eff.sim %>% count(EPU) %>% filter(n==4)
-# 10 EPUs surveyd 5 years
-# 9 EPUS surveyed 4 years
+# 19 EPUS surveyed 4 years
 
-sim.obs.m.fn <- function(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N){
+sim.obs.m.fn <- function(eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N){
   
   # need to figure out how observations per year per EPU
   # first determine the number of EPUs
   EPUs.to.use <- eff.sim %>% count(EPU,ID)
-  EPUs.to.use <- EPUs.to.use %>% filter(n==year)
+  # EPUs.to.use <- EPUs.to.use %>% filter(n==year)
   
   sight.true.N.to.use <- sight.true.N %>% filter(EPU %in% EPUs.to.use$EPU)
   
@@ -388,8 +379,8 @@ sim.obs.m.fn <- function(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.
                             with(df1, ifelse(grps.seen > 0 & !is.na(grps.seen), grps.seen, 1))), , drop = FALSE], 
                     row.names=NULL)
   obs.sim <- df2 %>% select(Year, ID)
-  colnames(obs.sim) <- c("year","stratum")
-  obs.sim$subunit <- 1
+  colnames(obs.sim) <- c("year","subunit")
+  obs.sim$stratum <- obs.sim$subunit
   
   # nrow(obs %>% filter(voc<10))/nrow(obs) # ~25% of voc values < 10%
   # need to simulate the voc to be heavily inflated (1/4) with <10% values
@@ -414,7 +405,6 @@ sim.obs.m.fn <- function(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.
   
 }
 
-# obs.sim.5years <- sim.obs.m.fn(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
 # obs.sim.4years <- sim.obs.m.fn(year=4, eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
 # 
 # obs.sim <- rbind(obs.sim.5years, obs.sim.4years)
@@ -425,29 +415,23 @@ sim.obs.m.fn <- function(year=5, eff.sim=eff.sim, field.obs=obs, pop.size=sight.
 ###--- create 30 sets of simulations
 
 # use the same exp, eff and sampinfo data
-# have 9 years of exp data, so try with 3, 6, and 9 years
-# Set1 = 2014, 2017, 2020
-# Set2 = 2014, 2015, 2017, 2018, 2020, 2021
-# Set3 = all years
-# run each set 10 times
-# create new obs data (10 sets to run with each exp set)
+# run 2 sets 15 times each
 
 glimpse(exp.sim)
-exp.sim.Set1 <- exp.sim %>% filter(year %in% c(2014, 2017, 2020))
-exp.sim.Set2 <- exp.sim %>% filter(!year %in% c(2016, 2019, 2022))
-exp.sim.Set3 <- exp.sim
+exp.sim %>% count(year)
+exp.sim %>% group_by(observed) %>% count(year)
 
-exp.sim.list <- list(exp.sim.Set1, exp.sim.Set2, exp.sim.Set3)
+exp.sim.Set1 <- exp.sim %>% filter(year==2020)
+exp.sim.Set2 <- exp.sim
 
+
+exp.sim.list <- list(exp.sim.Set1, exp.sim.Set2)
 
 obs.sim.list <- list()
-for(i in 1:10){
-  obs.sim.4years <- sim.obs.m.fn(year=4,eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
-  obs.sim.5years <- sim.obs.m.fn(year=5,eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
-  
-  obs.sim <- rbind(obs.sim.5years, obs.sim.4years)
-  obs.sim <- obs.sim %>% arrange(year, stratum)
-  
+for(i in 1:15){
+  obs.sim <- sim.obs.m.fn(eff.sim=eff.sim, field.obs=obs, pop.size=sight.true.N)
+  obs.sim <- obs.sim %>% arrange(year, subunit)
+  obs.sim <- obs.sim[c("year","stratum","subunit","total","voc")]
   obs.sim.list[[i]] <- obs.sim
 }
 
@@ -469,15 +453,15 @@ exp=mHT_input_sim$exp
 obs=mHT_input_sim$obs
 sampinfo=mHT_input_sim$sampinfo
 
-year.to.use <- 2014:2022
+year.to.use <- 2020:2021
 str(mHT_input_sim$obs)
 
-# run the 10 simulations of obs data with Set 1 of exp and the same sampinfo data
+# run the 15 simulations of obs data with Set 1 of exp and the same sampinfo data
 # add on the one layer of the extra exp sets and run all 30 at once with nboot at 10000
-out.mHT <- vector('list', 3)
+out.mHT <- vector('list', 2)
 for(r in 1:length(mHT_input_sim$exp)){
   
-  out.mHT_Set <- vector('list', 10)
+  out.mHT_Set <- vector('list', 15)
   names(out.mHT_Set) <- paste0('sim.Set',r,'_', seq_along(out.mHT_Set))
   for(i in seq_along(out.mHT_Set)){
     tempobs <- mHT_input_sim$obs[[i]]
@@ -485,13 +469,11 @@ for(r in 1:length(mHT_input_sim$exp)){
     
     for(yr in 1:length(year.to.use)){
       stratum.to.use <- tempobs %>% filter(year==year.to.use[yr]) %>% count(stratum)
-      stratum.to.use <- as.numeric(stratum.to.use$stratum)
+      stratum.to.use <- as.numeric(stratum.to.use$stratum) 
       
       tau.hats <- matrix(NA,length(stratum.to.use), 7)
       
       for(st in 1:length(stratum.to.use)) {
-        
-        
         
         tmp.year <- Sight.Est(observed~voc,
                               odat = tempobs %>% filter(year==year.to.use[yr] & stratum==stratum.to.use[st]),
@@ -517,6 +499,7 @@ for(r in 1:length(mHT_input_sim$exp)){
 saveRDS(out.mHT,"out/mHT_30sims.RDS")
 str(out.mHT)
 
+
 #####################################################################################
 #####################################################################################
 
@@ -539,7 +522,7 @@ str(out.mHT)
 # z = detection indicator (1 if the group was observed, 0 otherwise)
 # t = group size
 
-sight.dat <- vector('list',3)
+sight.dat <- vector('list',2)
 for(i in 1:length(exp)){
   tmp.exp <- exp[[i]]
   tmp.sight.dat <- tmp.exp %>%
@@ -581,7 +564,7 @@ glimpse(sight.dat) # check - looks the same as Fieberg's sight_dat csv
 # yr = year of observation (1 = 2014...9 = 2022)
 
 # non-augmented data
-oper.dat <- vector('list',10)
+oper.dat <- vector('list',15)
 for(i in 1:length(obs)){
   tmp.oper.dat <- obs[[i]] %>%
     transmute(x = round(as.double(voc*.01), 2),
@@ -589,7 +572,7 @@ for(i in 1:length(obs)){
               h = as.double(stratum),
               q = 1,
               z = 1,
-              yr = recode(year, '2014'=1, '2015'=2, '2016'=3, '2017'=4, '2018'=5, '2019'=6, '2020'=7, '2021'=8, '2022'=9), 
+              yr = recode(year, '2020'=1, '2021'=2), 
               subunits = as.double(subunit)) %>%
     glimpse()
   oper.dat[[i]] <- tmp.oper.dat
@@ -599,7 +582,7 @@ str(oper.dat)
 
 # augmented data
 # need to determine max m of each h
-aug <- vector('list',10)
+aug <- vector('list',15)
 for(i in 1:length(oper.dat)){
   aug.list <- oper.dat[[i]] %>%
     group_by(yr, h) %>%
@@ -615,7 +598,7 @@ for(i in 1:length(oper.dat)){
   aug[[i]] <- aug.list
 }
 
-oper.dat.aug <- vector('list',10)
+oper.dat.aug <- vector('list',15)
 for(i in 1:length(oper.dat)){
 tmp.oper.dat.aug <- aug[[i]][rep(1:nrow(aug[[i]]), aug[[i]]$aug),] %>%
   mutate(x = NA, ym1 = NA, h = h, q = NA, z = 0, yr = yr, subunits = h, .keep="none") %>%
@@ -651,16 +634,16 @@ glimpse(plot.dat)
 #   Scalars:
 #   R = number of sightability trials (changes depending on simulation set - 3 sets)
 # 
-#   Ngroups = number of observed and augmented groups for the 2014 to 2022 annual operational surveys
+#   Ngroups = number of observed and augmented groups for the 2014 to 2021 annual operational surveys
 # 
-#   Nsubunits.yr = total number of plots sampled between 2014 and 2022  = 86 
+#   Nsubunits.yr = total number of plots sampled between 2014 and 2021  = 76 
 # 
 #   ny1 = number of groups associated with the annual survey in 2014 (year 1)
 
-scalar.dat.full <- vector('list',3)
+scalar.dat.full <- vector('list',2)
 for(x in 1:length(sight.dat)){
   
-  scalar.dat <- vector('list',10)
+  scalar.dat <- vector('list',15)
   for(y in 1:length(oper.dat)){
     
     tmp.scalar.dat <- as.data.frame(matrix(NA, 1, 3))
@@ -684,10 +667,10 @@ for(x in 1:length(sight.dat)){
 
 
 # Need scalar.sums to ease modelling
-scalar.sums.full <- vector('list',3)
-for(x in 1:3){
-  scalar.sums <- vector('list',10)
-  for(y in 1:10){
+scalar.sums.full <- vector('list',2)
+for(x in 1:2){
+  scalar.sums <- vector('list',15)
+  for(y in 1:15){
     tmp.scalar.sums <- matrix(NA, nrow(plot.dat), 2)
     for (i in 1:nrow(plot.dat)){
       t <- i-1
@@ -710,6 +693,7 @@ rm(list = ls())
 # adapting from Tristen's code
 
 load("input/jags_30sims_input.Rdata")
+oper.dat[[1]] %>% count(subunits)
 
 # RUN MODEL ####
 # specify initial values
@@ -719,46 +703,117 @@ inits <-  function() list(bo=runif(1), bvoc=runif(1))
 params <- c("bo", "bvoc", "tau.hat")
 
 # MCMC settings
-ni <- 100 # build to 40000
+ni <- 40000 # build to 40000
 nt <- 2     # 50% thinning rate (discard every 2nd iteration)
-nb <- 50  # build to 20000
+nb <- 20000  # build to 20000
 nc <- 3
+n.adapt <- 5000
 
-
-# length(sight.dat) #3
-# length(oper.dat)  #10
-# length(scalar.sums.full) #3 by 10
-# length(scalar.dat.full)  #3 by 10
-
-
-# Bundle data
-x=1; y=1
-jags_30sims_output <- vector('list',3)
-for(x in 1:3){
-  tmp.jags <- vector('list',10)
-  for(y in 1:10){
+# Run model
+jags_30sims_output <- vector('list',2)
+for(x in 1:2){
+  tmp.jags <- vector('list',15)
+  for(y in 1:15){
     
     bundle.dat <- list(x.tilde=sight.dat[[x]]$x.tilde, z.tilde=sight.dat[[x]]$z.tilde, #sight.dat
-                       x=oper.dat[[y]]$x+.000001, ym1=oper.dat[[y]]$ym1, h=oper.dat[[y]]$h, q=oper.dat[[y]]$q, z=oper.dat[[y]]$z, yr=oper.dat[[y]]$yr, subunits=oper.dat[[y]]$subunits, # oper.dat
+                       x=oper.dat[[y]]$x, ym1=oper.dat[[y]]$ym1, h=oper.dat[[y]]$h, q=oper.dat[[y]]$q, z=oper.dat[[y]]$z, yr=oper.dat[[y]]$yr, subunits=oper.dat[[y]]$subunits, # oper.dat
                        h.plots=plot.dat$h.plots, yr.plots=plot.dat$yr.plots, # plot.dat
                        R=scalar.dat.full[[x]][[y]]$R, Ngroups=scalar.dat.full[[x]][[y]]$Ngroups, Nsubunits.yr=scalar.dat.full[[x]][[y]]$Nsubunits.yr, scalars=scalar.sums.full[[x]][[y]]) # scalar.dat
-    # Run model
+    
     
     # glimpse(bundle.dat)
-    # summary(bundle.dat$x)
-    # bundle.dat$subunits[2722]
-    # View(bundle.dat)
-    # dnorm(0, 0.1)
-      
-    tmp.jags[[y]] <- jags(bundle.dat, inits, params, "input/beta_binom_model_elk2022_updated.txt", nc, ni, nb, nt)
+    
+    tmp.jags[[y]] <- try({
+      jags(bundle.dat, inits, params, "input/beta_binom_model_elk2022_updated.txt", nc, ni, nb, nt, n.adapt)
+    },
+    silent=TRUE)
+    
   }
-  jags_30sims_input[[i]] <-  tmp.jags
+  jags_30sims_output[[x]] <-  tmp.jags
 }
+
+
+
 
 # setwd("C:/Users/TBRUSH/R/Elk_sightability/out")
 
-save("jags_output", "scalar.dat", file="out/03_Bayesian_analysis_jags_output.RData")
-save("eff",file="out/03_Bayesian_analysis_jags_effort.RData")
-
+save("jags_30sims_output", file="out/03_Bayesian_analysis_jags_output.RData")
+glimpse(jags_30sims_output)
 rm(list = ls())
 
+###################################################################################
+###--- Load output
+
+# load mHT
+out.mHT <- readRDS("out/mHT_30sims.RDS")
+str(out.mHT)
+out.mHT[[1]][[1]]
+# "tau.hat"  "VarTot"   "VarSamp"  "VarSight" "VarMod" "lcl" "ucl"
+# 3  5  7  8 10 11 12 13 14 19 1  2  4  6  9 15 16 17 18
+
+simulations = length(out.mHT[[1]])
+exp.sets = length(out.mHT)
+numEPUs = nrow(eff)
+
+mHT.df <- data.table(array(NA,c(simulations*exp.sets*numEPUs,4)))
+colnames(mHT.df) <- c("Sim","expSet","ID","EPU")
+mHT.df$Sim <- rep(seq_len(simulations), each=(numEPUs), times=exp.sets)
+mHT.df$expSet <- rep(seq_len(exp.sets), each=simulations*numEPUs)
+mHT.df$ID <- rep(eff$ID, times=simulations*exp.sets)
+mHT.df$EPU <- rep(eff$EPU, times=simulations*exp.sets)
+
+
+Reps <- 1:exp.sets
+timeSteps <- 1:simulations
+cols.to.select <- c(1, 6,7)
+
+mHT_sumStats <- rbindlist(lapply(Reps, function(rps){
+  mHT.df_ts <- rbindlist(lapply(timeSteps, function(ts){
+    
+    DT <- as.array(out.mHT[[rps]][[ts]])
+    DT <- rbind(DT[[1]],DT[[2]])
+    DT <- DT[,cols.to.select]
+    DT <- data.table(DT)
+    colnames(DT) <- c("Mean","LCI","UCI")
+    
+    return(DT)
+  }))
+}))
+
+
+glimpse(mHT.df)
+mHT.df <- cbind(mHT.df, mHT_sumStats)
+
+####
+
+# load jags
+# 3  5  7  8 10 11 12 13 14 19  1  2  4  6  9 15 16 17 18
+
+load("out/03_Bayesian_analysis_jags_output.RData")
+jags_30sims_output[[1]][[1]]
+glimpse(jags_30sims_output[[1]][[1]]$BUGSoutput$summary)
+
+jags.df <- data.table(array(NA,c(simulations*exp.sets*numEPUs,4)))
+colnames(jags.df) <- c("Sim","expSet","ID","EPU")
+jags.df$Sim <- rep(seq_len(simulations), each=(numEPUs), times=exp.sets)
+jags.df$expSet <- rep(seq_len(exp.sets), each=simulations*numEPUs)
+jags.df$ID <- rep(eff$ID, times=simulations*exp.sets)
+jags.df$EPU <- rep(eff$EPU, times=simulations*exp.sets)
+
+
+cols.to.select <- c(1,3,7)
+rows.to.select <- 4:22
+unlist(jags_30sims_output)
+MCMCsummary(jags_30sims_output[[rps]][[ts]], round = 2)
+
+jags_sumStats <- rbindlist(lapply(Reps, function(rps){
+  jags.df_ts <- rbindlist(lapply(timeSteps, function(ts){
+    
+    jags.summary <- MCMC(jags_30sims_output[[rps]][[ts]])
+    jags.summary <- jags.summary[rows.to.select,cols.to.select]
+    jags.DT <- data.table(jags.summary)
+    colnames(jags.DT) <- c("Mean","LCI","UCI")
+    
+    return(jags.DT)
+  }))
+}))
