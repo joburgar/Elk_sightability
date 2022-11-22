@@ -148,6 +148,7 @@ ggplot()+
 # Goal is to have ~90 day intervals to maximise data while minimising violation of closed population assumption
 # have calving / summer season as first option and start of our research. Season 1 = calving = 15 June - 1 Sept
 # then overlap with our surveys and winter. Season 2 = winter = 1 Jan - 31 Mar
+
 get_smpl_collar_dat <- function(telem_sf=telem_sf, start_date="2021-06-15", end_date="2021-09-01"){ 
   
   telem_sf <- telem_sf %>% mutate(SmpPrd = case_when(Date.Time.PST %>% between(start_date, end_date) ~ 'SmpPrd'))
@@ -165,9 +166,8 @@ get_smpl_collar_dat <- function(telem_sf=telem_sf, start_date="2021-06-15", end_
 
   locs <- as.data.frame(st_coordinates(telem_sf_smp %>% st_transform(crs=26910))) # convert to NAD 83 UTM Zone 10 for consistency with trapping grid (m)
   colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
-  plot(locs)
   ind <- rep(1:length(num.reps.collar), times=num.reps.collar) # have 9 marked individuals and various locations from each (33 to 104)
-  length(ind);nrow(telem_sf_smp) # 702 locations for 9 animals (check)
+  # length(ind);nrow(telem_sf_smp) # 702 locations for 9 animals (check)
   
   return(list(active.collars=active.collars, ind=ind, locs=locs))
 }
@@ -210,7 +210,6 @@ get_smpl_cam_dat <- function(cam_dat=cam_dat, start_date="2021-06-15", end_date=
  
   return(cam_dat_smp)
 }
-
 
 cam_dat_smp <- get_smpl_cam_dat(cam_dat = cam_dat)
 
@@ -337,102 +336,98 @@ telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
 
 
 ###--- simulate data
-
 # use function from scrbook
-
-sim.pID.data <- function(N=N, K=K, sigma=sigma, lam0=lam0, knownID=knownID,X=X,
-                         xlims=xlims, ylims=ylims,  obsmod= c("pois", "bern"), nmarked=c("known", "unknown"),rat=1, tel =0, nlocs=0)
-{
-  
-  ###add an error message for when there are more tel guys than nmarked
-  if(tel>knownID) stop ("tel cannot be bigger than knownID")
-  
-  obsmod <- match.arg(obsmod)
-  nmarked <- match.arg(nmarked)
-  
-  # Home range centers
-  npts<-dim(X)[1]
-  sx <- runif(N, xlims[1], xlims[2])
-  sy <- runif(N, ylims[1], ylims[2])
-  S <- cbind(sx, sy)
-  D <- e2dist(S, X)
-  lam <- lam0*exp(-(D*D)/(2*sigma*sigma))
-  Y <- array(NA, c(N, npts, K))
-  for (i in 1:N){
-    for (j in 1: npts){
-      
-      if (identical(obsmod, "bern")){
-        Y[i,j,] <- rbinom(K,1, lam[i,j])
-      } else if (identical(obsmod, "pois"))  {
-        Y[i,j,] <- rpois(K,lam[i,j])
-      }
-    }}
-  
-  n <- apply(Y, c(2,3), sum)
-  
-  Yknown <- Y[1:knownID,,]
-  
-  if (identical(nmarked, "unknown")){
-    iobs<-which(apply(Yknown>0,1,any))
-    Yobs<-Yknown[iobs,,]
-  } else if (identical(nmarked, "known")){
-    Yobs<-Yknown }
-  
-  YknownR<-Yobs
-  counter<-array(0, c(dim(Yobs)[1],dim(X)[1],K ))
-  for (i in 1:dim(Yobs)[1]){
-    for (j in 1: dim(X)[1]){
-      for (k in 1:K){
-        
-        if (identical(obsmod, "bern")){
-          if (YknownR[i,j,k] ==1 ) {
-            IDed<-rbinom(1,1,rat)
-            if (IDed ==0) { 
-              YknownR[i,j,k]<-0
-              counter[i,j,k]<-1} #counter is the number of marked records that cannot be identified to individual level
-          }
-        } else if (identical(obsmod, "Ypois")) {
-          if (Yobs[i,j,k] > 0 ) {
-            
-            IDed<-sum(rbinom(Yobs[i,j,k] ,1,rat))
-            YknownR[i,j,k]<-IDed
-            
-            if (IDed!=Yobs[i,j,k] ) { 
-              counter[i,j,k]<-Yobs[i,j,k]-IDed}
-          }
-        }
-        
-        
-      }}}
-  
-  n<-n-apply(counter, 2:3, sum) #subtract unidentified pictures from n
-  
-  #generate telemetry locations if tel>0
-  if (tel>0) {
-    
-    itel<-sort(sample(1:knownID, tel, replace=F))
-    locs<-list()
-    for (i in 1:tel){
-      lx<-rnorm(nlocs, S[itel[i],1], sigma)
-      ly<-rnorm(nlocs, S[itel[i],2], sigma)
-      locs[[i]]<-cbind(lx, ly)
-    }
-    
-  } else {
-    locs<-NULL
-    itel<-NULL}
-  
-  list(n=n,Y=Y, Yknown=Yknown, Yobs=Yobs, YknownR=YknownR, counter=sum(counter), locs=locs,telID=itel)
-  
-}
-
-dat <- sim.pID.data(N=N, K=K, sigma=sigma, lam0=lambda0, knownID = n.marked,
-                    X=X2, xlims=xlims.scaled, ylims=ylims.scaled,
-                    obsmod="pois", nmarked='known',
-                    tel=n.marked, nlocs=K) # each marked individual has telemetry and each has 1 fix per day (occasion)
-
-glimpse(dat)
-dim(dat$Yobs)
+# sim.pID.data <- function(N=N, K=K, sigma=sigma, lam0=lam0, knownID=knownID,X=X,
+#                          xlims=xlims, ylims=ylims,  obsmod= c("pois", "bern"), nmarked=c("known", "unknown"),rat=1, tel =0, nlocs=0)
+# {
+#   
+#   ###add an error message for when there are more tel guys than nmarked
+#   if(tel>knownID) stop ("tel cannot be bigger than knownID")
+#   
+#   obsmod <- match.arg(obsmod)
+#   nmarked <- match.arg(nmarked)
+#   
+#   # Home range centers
+#   npts<-dim(X)[1]
+#   sx <- runif(N, xlims[1], xlims[2])
+#   sy <- runif(N, ylims[1], ylims[2])
+#   S <- cbind(sx, sy)
+#   D <- e2dist(S, X)
+#   lam <- lam0*exp(-(D*D)/(2*sigma*sigma))
+#   Y <- array(NA, c(N, npts, K))
+#   for (i in 1:N){
+#     for (j in 1: npts){
+#       
+#       if (identical(obsmod, "bern")){
+#         Y[i,j,] <- rbinom(K,1, lam[i,j])
+#       } else if (identical(obsmod, "pois"))  {
+#         Y[i,j,] <- rpois(K,lam[i,j])
+#       }
+#     }}
+#   
+#   n <- apply(Y, c(2,3), sum)
+#   
+#   Yknown <- Y[1:knownID,,]
+#   
+#   if (identical(nmarked, "unknown")){
+#     iobs<-which(apply(Yknown>0,1,any))
+#     Yobs<-Yknown[iobs,,]
+#   } else if (identical(nmarked, "known")){
+#     Yobs<-Yknown }
+#   
+#   YknownR<-Yobs
+#   counter<-array(0, c(dim(Yobs)[1],dim(X)[1],K ))
+#   for (i in 1:dim(Yobs)[1]){
+#     for (j in 1: dim(X)[1]){
+#       for (k in 1:K){
+#         
+#         if (identical(obsmod, "bern")){
+#           if (YknownR[i,j,k] ==1 ) {
+#             IDed<-rbinom(1,1,rat)
+#             if (IDed ==0) { 
+#               YknownR[i,j,k]<-0
+#               counter[i,j,k]<-1} #counter is the number of marked records that cannot be identified to individual level
+#           }
+#         } else if (identical(obsmod, "Ypois")) {
+#           if (Yobs[i,j,k] > 0 ) {
+#             
+#             IDed<-sum(rbinom(Yobs[i,j,k] ,1,rat))
+#             YknownR[i,j,k]<-IDed
+#             
+#             if (IDed!=Yobs[i,j,k] ) { 
+#               counter[i,j,k]<-Yobs[i,j,k]-IDed}
+#           }
+#         }
+#         
+#         
+#       }}}
+#   
+#   n<-n-apply(counter, 2:3, sum) #subtract unidentified pictures from n
+#   
+#   #generate telemetry locations if tel>0
+#   if (tel>0) {
+#     
+#     itel<-sort(sample(1:knownID, tel, replace=F))
+#     locs<-list()
+#     for (i in 1:tel){
+#       lx<-rnorm(nlocs, S[itel[i],1], sigma)
+#       ly<-rnorm(nlocs, S[itel[i],2], sigma)
+#       locs[[i]]<-cbind(lx, ly)
+#     }
+#     
+#   } else {
+#     locs<-NULL
+#     itel<-NULL}
+#   
+#   list(n=n,Y=Y, Yknown=Yknown, Yobs=Yobs, YknownR=YknownR, counter=sum(counter), locs=locs,telID=itel)
+#   
+# }
+# 
+# dat <- sim.pID.data(N=N, K=K, sigma=sigma, lam0=lambda0, knownID = n.marked,
+#                     X=X2, xlims=xlims.scaled, ylims=ylims.scaled,
+#                     obsmod="pois", nmarked='known',
+#                     tel=n.marked, nlocs=K) # each marked individual has telemetry and each has 1 fix per day (occasion)
+################################################################################
 
 # we have 5 collared elk detected on camera and 4 not detected
 # to  match with telem
@@ -454,56 +449,88 @@ elk_dat <- left_join(elk_dat %>% select(!date_time), study.days %>%
 ind_dat <- elk_dat %>% filter(!is.na(ind)) %>% select(!collar) %>% arrange(ind, Occ)
 # 14 days of detections with known individuals
 
-
 # dat$Yobs is a matrix nind:J:K
 # rows are the 9 inds, columns are the traps J, and different slices for each occasion
 n.marked = max(ind_dat$ind)
 ind_dat$trapID <- rownames(camXY)[match(ind_dat$station_id, camXY$trap.id)]
-ind_dat %>% select(trapID, ind, Occ)
+Yobs_ind_dat <- ind_dat %>% group_by(trapID, ind) %>% count(Occ) %>% arrange(Occ)
 study.days %>% filter(Date %in% c(as.Date("2021-06-15"),as.Date("2021-09-01")))
 
 # study.days       Date Year Month jDay Occ
 # 1 2021.06.15 2021-06-15 2021     6  166   1
 # 2 2021.09.01 2021-09-01 2021     9  244  79
 
-K = max(ind_dat$Occ)
+K = as.numeric(max(ind_dat$Occ))
+J = nrow(camXY)
+
 # create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
-Yobs <- array(0L, c(n.marked, nrow(camXY),K))
+Yobs <- array(0L, c(n.marked,J,K))
+
+for(i in 1:nrow(Yobs_ind_dat)){
+  ind.value <- as.numeric(Yobs_ind_dat[i,c("ind")])
+  J.value <- as.numeric(Yobs_ind_dat[i,c("trapID")])
+  K.value <- as.numeric(Yobs_ind_dat[i,c("Occ")])
+  dtn.value <- as.numeric(Yobs_ind_dat[i,c("n")])
+
+  Yobs[ind.value,J.value,K.value] <- dtn.value
+}
+
+sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
+
 # now how to populate from ind_dat
 # loop through for each occasion, add in the count as the value in the [ind,J] 
 
 dim(dat$Yobs)
 
-sum(dat$n) # number of elk detections (marked and unmarked)
-sum(dat$Yknown) # number of marked elk detections
 
-
-rownames(eff)
-camXY
 ## Data on marked guys from resighting occasion
 M = 500
 yr.aug <- array(0L, c(M, J))
-y2d <- apply(dat$Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps'
+y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
 class(y2d) <- "integer"
 dim(y2d)
 
 yr.aug[1:n.marked,] <- y2d
 dim(yr.aug)
-dim(dat$Yobs)
-sum(yr.aug) # should be the same as sum(dat$Yobs)
-sum(dat$Yobs)
-sum(dat$n)
-dat$locs
+dim(Yobs)
+sum(yr.aug) # should be the same as sum(Yobs)
 
-yr.obs <- rowSums(dat$n)
-## ----Simulated Data for SMR-----------------------------------------------------------
+# dat$n is the number of elk detections (marked and unmarked)
+# dim [J,K]
+
+elk_dat %>% summarise(min=min(event_groupsize), mean = mean(event_groupsize),max = max(event_groupsize))
+# 2.72 is average group size (range 1 - 13)
+# so for now let's model events, and multiply density by average group size for total animals
+n.tmp <- elk_dat %>% group_by(station_id) %>% count(Occ)
+
+n.tmp$trapID <- rownames(camXY)[match(n.tmp$station_id, camXY$trap.id)]
+n.tmp2 <- n.tmp %>% ungroup() %>% select(-station_id) %>% arrange(trapID)
+n.tmp2$n
+
+# create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
+n <- array(0L, c(J,K))
+dim(n)
+
+for(i in 1:nrow(n.tmp2)){
+  J.value <- as.numeric(n.tmp2[i,c("trapID")])
+  K.value <- as.numeric(n.tmp2[i,c("Occ")])
+  dtn.value <- as.numeric(n.tmp2[i,c("n")])
+  
+  n[J.value,K.value] <- dtn.value
+}
+
+sum(n.tmp2$n); sum(n); nrow(elk_dat) # check they are all the same
+
+yr.obs <- rowSums(n) # removing k for faster processing
+sum(yr.obs)
+
+## ----Data for SMR-----------------------------------------------------------
 # Run JAGS code
-M = 400
-yr.aug = 
+nlocs = length(ind) # number of locations
 
 cSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked, J=J,
                   #K=K,
-                  nlocs=nlocs, ind=ind, locs=locs,
+                  nlocs=nlocs, ind=ind, locs=locs.scaled,
                   xlim=xlims.scaled, ylim=ylims.scaled, A=areakm2.scaled)
 
 jd1 <- cSMR.data
@@ -528,8 +555,8 @@ mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 (end.time <- Sys.time()) # 4 mins for 1000 iterations
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
-save("mc.cSMR_JAGS",file="out/mc.elk.cSMR_30KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk.cSMR_30KIt.ET.RData")
+save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1.cSMR_30KIt.RData")
+save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1.cSMR_30KIt.ET.RData")
 stopCluster(cl3)
 
 # load("out/cSMR.data.RData")
