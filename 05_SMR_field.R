@@ -35,191 +35,8 @@ new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
-#########################################
-###--- Input study area  / camera trap location data
-# trap ID for marking occasions - unknown so using camera array (elk marked by completely different process, independent)
-GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
-EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
-# SP_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
-# st_area(SP_poly)*1e-6
-
-aoi <- EPU_poly %>% filter(EPU_Unit_N=="Sechelt Peninsula")
-
-cam_lcn <- read.csv("data/SPCS_station_data.csv", head=TRUE) %>% as_tibble()
-glimpse(cam_lcn)
-cam_lcn %>% count(treatment)
-cam_lcn <- cam_lcn %>% mutate(habitat = case_when(treatment=="Forest - Mixed" ~ "Forest_Mixed",
-                                                  grepl("Forest - Conifer", treatment) ~ "Forest_Conifer",
-                                                  treatment=="Forest - Grass - Road" ~ "Forest_Conifer",
-                                                  grepl("Open", treatment) ~ "Open"))
-
-cam_lcn %>% count(habitat)
-cam_lcn <- cam_lcn %>% arrange(station_id)
-cam_lcn <- cam_lcn %>% filter(station_id != c("SPCS17", "SPCS61")) # remove the two stations without data
-
-cam_sf <- st_as_sf(cam_lcn,coords = c("longitude", "latitude"), crs = 4326)
-
-ggplot()+
-  geom_sf(data=aoi)+
-  geom_sf(data=cam_sf, aes(col=habitat))
-
-#  UTM Zone 10N, NAD83 (EPSG:26910)
-cam_coords <- st_coordinates(cam_sf %>% st_transform(26910))
-
-
-###--- have both sets of camera data, start with simulations for 40 sites
-camXY <- cam_lcn %>% select(station_id)
-camXY <- cbind(camXY, cam_coords)
-colnames (camXY) <- c("trap.id","x","y")
-str(camXY)
-
-# specify how much to buffer sites by (in 1 km units, according to coord.scale)
-coord.scale <- 1000
-buffer <- 2 # 2 km unit buffer
-
-traplocs <- as.matrix(camXY[,c("x","y")])
-X <- traplocs/coord.scale
-dim(X)
-
-###--- create xlims and ylims of scaled coordinates
-Xl <- min(X[,1] - buffer)
-X.scaled <- X[,1] - Xl
-
-Yl <- min(X[,2] - buffer)
-Y.scaled <- X[,2] - Yl
-
-xlims.scaled <- c(min(X.scaled)-buffer,max(X.scaled)+buffer); ylims.scaled <- c(min(Y.scaled)-buffer,max(Y.scaled)+buffer)
-
-areakm2.scaled <- xlims.scaled[2]*ylims.scaled[2]
-# [1] 836 km2 for 56 cams and 2 km buffer (excluding the 2 cams without data as of November 2022)
-
-X2 <- as.matrix(cbind(X.scaled,Y.scaled))
-dim(X2) # scaled traploc matrix in 1 km units
-summary(X2)
-
-eff <- read.csv("data/SPCS_operability_matrix.csv", head=TRUE)
-
-### creating a data frame of study dates to align with occasions
-study.days <- colnames(eff[2:ncol(eff)])
-study.days <- str_replace(study.days, "X", "")
-study.days <- as.data.frame(study.days)
-study.days$Date <- ymd(study.days$study.days)
-study.days$Year <- year(study.days$Date)
-study.days$Month <- month(study.days$Date)
-study.days$jDay <- yday(study.days$Date)
-study.days$Occ <- rownames(study.days)
-study.days %>% as_tibble
-
-### creating operability matrix with rownames as station_id (same order as X2) and colnames as occasions
-dim(eff)
-rownames(eff) <- eff$station_id
-camop <- as.matrix(eff[,2:409])
-colnames(camop) <- 1:ncol(camop)
-
-# #########################################
-###--- telem locations
-telem <- read.csv("data/Collars_Sechelt.csv", stringsAsFactors = TRUE) %>% as_tibble() %>%
-  dplyr::select(Collar_ID, SCTS__UTC_, Latitude_d, Longitude_ ,Easting, Northing) %>%
-  rename(Date.Time.UTC = SCTS__UTC_, Latitude = Latitude_d, Longitude=Longitude_)
-
-telem$Date.Time.UTC <- ymd_hms(telem$Date.Time.UTC, tz = "UTC")
-telem$Date.Time.PST <- with_tz(telem$Date.Time.UTC, tz)
-telem <- telem %>% mutate(Year = year(Date.Time.PST), Month = lubridate::month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
-
-telem %>% group_by(Collar_ID) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
-telem %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
-# telem location data for Sechelt Peninsula from 2021-06-13 19:01:36 to 2022-06-01 10:19:55 
-
-telem_sf <- st_as_sf(telem %>% filter(!is.na(Longitude)), coords = c("Longitude", "Latitude"), crs=4326)
-telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
-telem_sf$Collar_ID <- as.factor(telem_sf$Collar_ID)
-
-table(telem_sf$Collar_ID, telem_sf$Month)
-
-ggplot()+
-  geom_sf(data=aoi)+
-  geom_sf(data=telem_sf %>% filter(Month %in% c("Feb","Mar","Apr")),aes(fill=Collar_ID, col=Collar_ID))+
-  geom_sf(data=cam_sf, cex=2, col="blue")
-
-### Create code to programmatically get sample period data
-# consider population periods based on seasonality and life history traits
-# check with Tristen (Dan / Darryl) to finalise seasonaliy dates
-# open hunting season (deer) in Sechelt Sept 1- Nov 30. Season 2 = hunting/rutting = Sept 15 - Nov 15
-# Goal is to have ~90 day intervals to maximise data while minimising violation of closed population assumption
-# have calving / summer season as first option and start of our research. Season 1 = calving = 15 June - 1 Sept
-# then overlap with our surveys and winter. Season 2 = winter = 1 Jan - 31 Mar
-
-get_smpl_collar_dat <- function(telem_sf=telem_sf, start_date="2021-06-15", end_date="2021-09-01"){ 
-  
-  telem_sf <- telem_sf %>% mutate(SmpPrd = case_when(Date.Time.PST %>% between(start_date, end_date) ~ 'SmpPrd'))
-
-  telem_sf_smp <- telem_sf %>% filter(SmpPrd=="SmpPrd") %>% arrange(Collar_ID)
-  active.collars <- unique(telem_sf_smp$Collar_ID)
-  active.collars <- droplevels(active.collars)
-  num.reps.collar <- telem_sf_smp %>% count(Collar_ID) %>% select(n) %>% st_drop_geometry()
-  num.reps.collar <- as.numeric(num.reps.collar$n)
-  
-  # ggplot()+
-  #   geom_sf(data = aoi)+
-  #   geom_sf(data=telem_sf %>% filter(SmpPrd=="SmpPrd"),aes(fill=Collar_ID, col=Collar_ID))+
-  #   geom_sf(data=cam_sf, pch=15)
-
-  locs <- as.data.frame(st_coordinates(telem_sf_smp %>% st_transform(crs=26910))) # convert to NAD 83 UTM Zone 10 for consistency with trapping grid (m)
-  colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
-  ind <- rep(1:length(num.reps.collar), times=num.reps.collar) # have 9 marked individuals and various locations from each (33 to 104)
-  # length(ind);nrow(telem_sf_smp) # 702 locations for 9 animals (check)
-  
-  return(list(active.collars=active.collars, ind=ind, locs=locs))
-}
-
-# create two sampling periods to start
-# Summer = 15 Jun - 1 Sep (ends prior to hunting season)
-# Winter = 1 Jan - 31 Mar (coincide with elk surveys)
-SmpPrd1_telem <- get_smpl_collar_dat(telem_sf=telem_sf, start_date="2021-06-15", end_date="2021-09-01")
-SmpPrd2_telem <- get_smpl_collar_dat(telem_sf=telem_sf, start_date="2022-01-01", end_date="2022-03-31")
-
-glimpse(SmpPrd1_telem)
-glimpse(SmpPrd2_telem)
-
-###--- create xlims and ylims of scaled coordinates
-locs <- SmpPrd1_telem$locs
-
-locs.scaled <- locs/coord.scale
-locs.scaled$Xcoord.scaled <- locs.scaled[,1] - Xl
-locs.scaled$Ycoord.scaled <- locs.scaled[,2] - Yl
-
-plot(X2)
-points(locs.scaled, col="red")
 
 ###############################################################################
-# Load camera detection data
-cam_dat <- read.csv("data/SPCS_30min_Independent.csv", head=TRUE) %>% as_tibble() %>% type_convert()
-glimpse(cam_dat)
-cam_dat %>% count(misfire)
-
-cam_dat <- cam_dat %>% select(station_id, species, report_names, date_time, collar, collar_tags, event_id, event_duration, event_groupsize, event_observations)
-
-cam_dat$date_time <- ymd_hms(cam_dat$date_time, tz = tz)
-cam_dat$Date <- as.Date(cam_dat$date_time)
-cam_dat <- cam_dat %>% mutate(Year = year(Date), Month = lubridate::month(Date, label = T), jDay = yday(Date))
-
-get_smpl_cam_dat <- function(cam_dat=cam_dat, start_date="2021-06-15", end_date="2021-09-01"){ 
-  
-  cam_dat <- cam_dat %>% mutate(SmpPrd = case_when(Date %>% between(start_date, end_date) ~ 'SmpPrd'))
-  cam_dat_smp <- cam_dat %>% filter(SmpPrd=="SmpPrd")
- 
-  return(cam_dat_smp)
-}
-
-cam_dat_smp <- get_smpl_cam_dat(cam_dat = cam_dat)
-
-elk_dat <- cam_dat_smp %>% filter(grepl("Cervus", species))
-elk_dat %>% filter(collar!=FALSE)
-elk_dat %>% count(collar_tags)
-
-
-###############################################################################
-
 # LOAD AERIAL DATA ####
 aerialDIR <- "//Sfp.idir.bcgov/s140/S40073/FLNR RM/!Terrestrial Wildlife Section/1_Species & Values/Roosevelt Elk/Sightability Project/4. Technical/Data/Aerial_SMR"
 list.files(aerialDIR)
@@ -428,113 +245,253 @@ telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
 #                     obsmod="pois", nmarked='known',
 #                     tel=n.marked, nlocs=K) # each marked individual has telemetry and each has 1 fix per day (occasion)
 ################################################################################
+###--- function to organise camera data for SMR
 
-# we have 5 collared elk detected on camera and 4 not detected
-# to  match with telem
-SmpPrd1_telem$active.collars # 31098 31099 31541 37085 41255 41257 42256 42257 42258
-unique(SmpPrd1_telem$ind) # name the ind 1-9 based on active.collars
-ind.lookup <- as.data.frame(SmpPrd1_telem$active.collars)
-colnames(ind.lookup) <- "active.collar"
-ind.lookup$ind <- rep(1:9)
-glimpse(ind.lookup)
+# consider area in ha, unit size is 100 m = 1 unit, buffer in unit lengths
+organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf, M=400, 
+                                     coord.scale=100, buffer=20, start_date="2021-06-15", end_date="2021-09-01"){
+  ###--- Camera meta data
+  #  UTM Zone 10N, NAD83 (EPSG:26910)
+  cam_coords <- st_coordinates(cam_sf %>% st_transform(26910))
+  
+  camXY <- cam_lcn %>% select(station_id)
+  camXY <- cbind(camXY, cam_coords)
+  colnames (camXY) <- c("trap.id","x","y")
+  
+  traplocs <- as.matrix(camXY[,c("x","y")])
+  X <- traplocs/coord.scale
+  
+  ###--- create xlims and ylims of scaled coordinates, and area
+  Xl <- min(X[,1] - buffer)
+  X.scaled <- X[,1] - Xl
+  
+  Yl <- min(X[,2] - buffer)
+  Y.scaled <- X[,2] - Yl
+  
+  xlims.scaled <- c(min(X.scaled)-buffer,max(X.scaled)+buffer); ylims.scaled <- c(min(Y.scaled)-buffer,max(Y.scaled)+buffer)
+  
+  areaha.scaled <- xlims.scaled[2]*ylims.scaled[2]
+  
+  X2 <- as.matrix(cbind(X.scaled,Y.scaled))
+  
+  ### creating a data frame of study dates to align with occasions
+  study.days <- colnames(eff[2:ncol(eff)])
+  study.days <- str_replace(study.days, "X", "")
+  study.days <- as.data.frame(study.days)
+  study.days$Date <- ymd(study.days$study.days)
+  study.days$Year <- year(study.days$Date)
+  study.days$Month <- month(study.days$Date)
+  study.days$jDay <- yday(study.days$Date)
+  study.days$Occ <- rownames(study.days)
+  
+  study_period_days <- study.days%>% filter(between(Date, as.Date(start_date),as.Date(end_date))) %>% as_tibble
+  study_period_days$SP_Occ <- rownames(study_period_days) # get the occasions for the study period, starting at 1
+  
+  ### creating operability matrix with rownames as station_id (same order as X2) and colnames as occasions
+  rownames(eff) <- eff$station_id
+  camop <- as.matrix(eff[,2:ncol(eff)])
+  colnames(camop) <- 1:ncol(camop)
+  SP_Occ_start <- min(as.numeric(study_period_days$Occ))
+  SP_Occ_end <- max(as.numeric(study_period_days$Occ))
+  
+  camop <- camop[,SP_Occ_start:SP_Occ_end]
+  
+  telem_sf <- telem_sf %>% mutate(SmpPrd = case_when(Date.Time.PST %>% between(start_date, end_date) ~ 'SmpPrd'))
+  
+  telem_sf_smp <- telem_sf %>% filter(SmpPrd=="SmpPrd") %>% arrange(Collar_ID)
+  active.collars <- unique(telem_sf_smp$Collar_ID)
+  active.collars <- droplevels(active.collars)
+  num.reps.collar <- telem_sf_smp %>% count(Collar_ID) %>% select(n) %>% st_drop_geometry()
+  num.reps.collar <- as.numeric(num.reps.collar$n)
+  
+  locs <- as.data.frame(st_coordinates(telem_sf_smp %>% st_transform(crs=26910))) # convert to NAD 83 UTM Zone 10 for consistency with trapping grid (m)
+  colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
+  nlocs <- nrow(locs)
 
-glimpse(elk_dat)
-elk_dat %>% count(collar_tags)
-elk_dat$collar_tags <- as.factor(elk_dat$collar_tags)
-elk_dat <- left_join(elk_dat, ind.lookup, by=c("collar_tags"="active.collar"))
-elk_dat %>% group_by(collar_tags) %>% count(ind) # inds 1, 2, 3, 8, 9
-elk_dat <- left_join(elk_dat %>% select(!date_time), study.days %>% 
-                           filter(between(Date, as.Date('2021-06-15'), as.Date('2021-09-01'))) %>% select("Occ", "jDay"))
-
-ind_dat <- elk_dat %>% filter(!is.na(ind)) %>% select(!collar) %>% arrange(ind, Occ)
-# 14 days of detections with known individuals
-
-# dat$Yobs is a matrix nind:J:K
-# rows are the 9 inds, columns are the traps J, and different slices for each occasion
-n.marked = max(ind_dat$ind)
-ind_dat$trapID <- rownames(camXY)[match(ind_dat$station_id, camXY$trap.id)]
-Yobs_ind_dat <- ind_dat %>% group_by(trapID, ind) %>% count(Occ) %>% arrange(Occ)
-study.days %>% filter(Date %in% c(as.Date("2021-06-15"),as.Date("2021-09-01")))
-
-# study.days       Date Year Month jDay Occ
-# 1 2021.06.15 2021-06-15 2021     6  166   1
-# 2 2021.09.01 2021-09-01 2021     9  244  79
-
-K = as.numeric(max(ind_dat$Occ))
-J = nrow(camXY)
-
-# create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
-Yobs <- array(0L, c(n.marked,J,K))
-
-for(i in 1:nrow(Yobs_ind_dat)){
-  ind.value <- as.numeric(Yobs_ind_dat[i,c("ind")])
-  J.value <- as.numeric(Yobs_ind_dat[i,c("trapID")])
-  K.value <- as.numeric(Yobs_ind_dat[i,c("Occ")])
-  dtn.value <- as.numeric(Yobs_ind_dat[i,c("n")])
-
-  Yobs[ind.value,J.value,K.value] <- dtn.value
+  locs.scaled <- locs/coord.scale
+  locs.scaled$Xcoord.scaled <- locs.scaled[,1] - Xl
+  locs.scaled$Ycoord.scaled <- locs.scaled[,2] - Yl
+  
+  ind <- rep(1:length(num.reps.collar), times=num.reps.collar) #  marked individuals and various locations from each
+  
+  cam_dat <- cam_dat %>% select(station_id, species, report_names, date_time, collar, collar_tags, event_id, event_duration, event_groupsize, event_observations)
+  
+  cam_dat$date_time <- ymd_hms(cam_dat$date_time, tz = tz)
+  cam_dat$Date <- as.Date(cam_dat$date_time)
+  cam_dat <- cam_dat %>% mutate(Year = year(Date), Month = lubridate::month(Date, label = T), jDay = yday(Date))
+  
+  cam_dat <- cam_dat %>% mutate(SmpPrd = case_when(Date %>% between(start_date, end_date) ~ 'SmpPrd'))
+  cam_dat_smp <- cam_dat %>% filter(SmpPrd=="SmpPrd")
+  elk_dat <- cam_dat_smp %>% filter(grepl("Cervus", species))
+  
+  # to  match with telem with individuals
+  ind.lookup <- as.data.frame(active.collars)
+  colnames(ind.lookup) <- "active.collar"
+  ind.lookup$ind <- rep(1:nrow(ind.lookup))
+  
+  elk_dat$collar_tags <- as.factor(elk_dat$collar_tags)
+  elk_dat <- left_join(elk_dat, ind.lookup, by=c("collar_tags"="active.collar"))
+  elk_dat <- left_join(elk_dat %>% select(!date_time), 
+                       study.days %>% 
+                         filter(between(Date, as.Date(start_date), as.Date(end_date))) %>% 
+                         select("Occ", "jDay"))
+  elk_dat$SP_Occ <- as.numeric(study_period_days$SP_Occ[match(elk_dat$Occ, study_period_days$Occ)])
+  
+  ind_dat <- elk_dat %>% filter(!is.na(ind)) %>% select(!collar) %>% arrange(ind, SP_Occ)
+  
+  # dat$Yobs is a matrix nind:J:K
+  # rows are the 9 inds, columns are the traps J, and different slices for each occasion
+  n.marked = length(active.collars)
+  ind_dat$trapID <- rownames(camXY)[match(ind_dat$station_id, camXY$trap.id)]
+  Yobs_ind_dat <- ind_dat %>% group_by(trapID, ind) %>% count(SP_Occ) %>% arrange(SP_Occ)
+  
+  K = nrow(study_period_days) 
+  J = nrow(camXY)
+  
+  # create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
+  Yobs <- array(0L, c(n.marked,J,K))
+  
+  for(i in 1:nrow(Yobs_ind_dat)){
+    ind.value <- as.numeric(Yobs_ind_dat[i,c("ind")])
+    J.value <- as.numeric(Yobs_ind_dat[i,c("trapID")])
+    K.value <- as.numeric(Yobs_ind_dat[i,c("SP_Occ")])
+    dtn.value <- as.numeric(Yobs_ind_dat[i,c("n")])
+    
+    Yobs[ind.value,J.value,K.value] <- dtn.value
+  }
+  
+  # sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
+  
+  ## Data on marked guys from resighting occasion
+  yr.aug <- array(0L, c(M, J))
+  y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
+  class(y2d) <- "integer"
+  
+  yr.aug[1:n.marked,] <- y2d
+  # dim(yr.aug)
+  # dim(Yobs)
+  # sum(yr.aug) # should be the same as sum(Yobs)
+  
+  n.tmp <- elk_dat %>% group_by(station_id) %>% count(SP_Occ)
+  
+  n.tmp$trapID <- rownames(camXY)[match(n.tmp$station_id, camXY$trap.id)]
+  n.tmp2 <- n.tmp %>% ungroup() %>% select(-station_id) %>% arrange(trapID)
+  
+  # create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
+  n <- array(0L, c(J,K))
+  
+  for(i in 1:nrow(n.tmp2)){
+    J.value <- as.numeric(n.tmp2[i,c("trapID")])
+    K.value <- as.numeric(n.tmp2[i,c("SP_Occ")])
+    dtn.value <- as.numeric(n.tmp2[i,c("n")])
+    
+    n[J.value,K.value] <- dtn.value
+  }
+  
+  sum(n.tmp2$n); sum(n); nrow(elk_dat) # check they are all the same
+  
+  yr.obs <- rowSums(n) # removing k for faster processing
+  
+  return(list(M=M,yr.aug=yr.aug, yr.obs=yr.obs, n=n, Yobs_ind_dat=Yobs_ind_dat, X2=X2, n.marked=n.marked, J=J,K=K,
+              nlocs=nlocs, ind=ind, locs.scaled=locs.scaled, camop = camop,
+              xlims.scaled=xlims.scaled, ylims.scaled=ylims.scaled, areaha.scaled=areaha.scaled))
 }
 
-sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
 
-# now how to populate from ind_dat
-# loop through for each occasion, add in the count as the value in the [ind,J] 
+################################################################################
+###--- For field data ---###
+###--- Input study area  / camera trap location data
+# trap ID for marking occasions - unknown so using camera array (elk marked by completely different process, independent)
+GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
+EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
+# SP_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
+# st_area(SP_poly)*1e-6
 
-dim(dat$Yobs)
+aoi <- EPU_poly %>% filter(EPU_Unit_N=="Sechelt Peninsula")
+
+cam_lcn <- read.csv("data/SPCS_station_data.csv", head=TRUE) %>% as_tibble()
+glimpse(cam_lcn)
+cam_lcn %>% count(treatment)
+cam_lcn <- cam_lcn %>% mutate(habitat = case_when(treatment=="Forest - Mixed" ~ "Forest_Mixed",
+                                                  grepl("Forest - Conifer", treatment) ~ "Forest_Conifer",
+                                                  treatment=="Forest - Grass - Road" ~ "Forest_Conifer",
+                                                  grepl("Open", treatment) ~ "Open"))
+
+cam_lcn %>% count(habitat)
+cam_lcn <- cam_lcn %>% arrange(station_id)
+cam_lcn <- cam_lcn %>% filter(station_id != c("SPCS17", "SPCS61")) # remove the two stations without data
+
+cam_sf <- st_as_sf(cam_lcn,coords = c("longitude", "latitude"), crs = 4326)
+
+cam_dat <- read.csv("data/SPCS_30min_Independent.csv", head=TRUE) %>% as_tibble() %>% type_convert()
+
+ggplot()+
+  geom_sf(data=aoi)+
+  geom_sf(data=cam_sf, aes(col=habitat))
+
+eff <- read.csv("data/SPCS_operability_matrix.csv", head=TRUE)
+
+telem <- read.csv("data/Collars_Sechelt.csv", stringsAsFactors = TRUE) %>% as_tibble() %>%
+  dplyr::select(Collar_ID, SCTS__UTC_, Latitude_d, Longitude_ ,Easting, Northing) %>%
+  rename(Date.Time.UTC = SCTS__UTC_, Latitude = Latitude_d, Longitude=Longitude_)
+
+### Create code to programmatically get sample period data
+# consider population periods based on seasonality and life history traits
+# check with Tristen (Dan / Darryl) to finalise seasonaliy dates
+# open hunting season (deer) in Sechelt Sept 1- Nov 30. Season 2 = hunting/rutting = Sept 15 - Nov 15
+# Goal is to have ~90 day intervals to maximise data while minimising violation of closed population assumption
+# have calving / summer season as first option and start of our research. Season 1 = calving = 15 June - 1 Sept
+# then overlap with our surveys and winter. Season 2 = winter = 1 Jan - 31 Mar
 
 
-## Data on marked guys from resighting occasion
-M = 500
-yr.aug <- array(0L, c(M, J))
-y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
-class(y2d) <- "integer"
-dim(y2d)
+###--- telem locations
 
-yr.aug[1:n.marked,] <- y2d
-dim(yr.aug)
-dim(Yobs)
-sum(yr.aug) # should be the same as sum(Yobs)
+telem$Date.Time.UTC <- ymd_hms(telem$Date.Time.UTC, tz = "UTC")
+telem$Date.Time.PST <- with_tz(telem$Date.Time.UTC, tz)
+telem <- telem %>% mutate(Year = year(Date.Time.PST), Month = lubridate::month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
 
-# dat$n is the number of elk detections (marked and unmarked)
-# dim [J,K]
+telem %>% group_by(Collar_ID) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
+telem %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
+# telem location data for Sechelt Peninsula from 2021-06-13 19:01:36 to 2022-06-01 10:19:55 
 
+telem_sf <- st_as_sf(telem %>% filter(!is.na(Longitude)), coords = c("Longitude", "Latitude"), crs=4326)
+telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
+telem_sf$Collar_ID <- as.factor(telem_sf$Collar_ID)
+
+table(telem_sf$Collar_ID, telem_sf$Month)
+
+ggplot()+
+  geom_sf(data=aoi)+
+  geom_sf(data=telem_sf %>% filter(Month %in% c("Feb","Mar","Apr")),aes(fill=Collar_ID, col=Collar_ID))+
+  geom_sf(data=cam_sf, cex=2, col="blue")
+
+
+##########################################
+###--- create camera data for different study periods
+
+cSMR_smp1 <- organise_camera_SMR_data(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf,
+                                      M=400,coord.scale=100, buffer=20, start_date="2021-06-15", end_date="2021-09-01")
+  
+glimpse(cSMR_smp1)
+camop = cSMR_smp1$camop
+cam_eff <- rowSums(camop)/cSMR_smp1$K
+length(cam_eff)
+
+
+# #########################################
 elk_dat %>% summarise(min=min(event_groupsize), mean = mean(event_groupsize),max = max(event_groupsize))
 # 2.72 is average group size (range 1 - 13)
 # so for now let's model events, and multiply density by average group size for total animals
-n.tmp <- elk_dat %>% group_by(station_id) %>% count(Occ)
-
-n.tmp$trapID <- rownames(camXY)[match(n.tmp$station_id, camXY$trap.id)]
-n.tmp2 <- n.tmp %>% ungroup() %>% select(-station_id) %>% arrange(trapID)
-n.tmp2$n
-
-# create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
-n <- array(0L, c(J,K))
-dim(n)
-
-for(i in 1:nrow(n.tmp2)){
-  J.value <- as.numeric(n.tmp2[i,c("trapID")])
-  K.value <- as.numeric(n.tmp2[i,c("Occ")])
-  dtn.value <- as.numeric(n.tmp2[i,c("n")])
-  
-  n[J.value,K.value] <- dtn.value
-}
-
-sum(n.tmp2$n); sum(n); nrow(elk_dat) # check they are all the same
-
-yr.obs <- rowSums(n) # removing k for faster processing
-sum(yr.obs)
 
 ## ----Data for SMR-----------------------------------------------------------
 # Run JAGS code
-nlocs = length(ind) # number of locations
 
-cSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked, J=J,
-                  #K=K,
-                  nlocs=nlocs, ind=ind, locs=locs.scaled,
-                  xlim=xlims.scaled, ylim=ylims.scaled, A=areakm2.scaled)
+cSMR.data <- list(M=cSMR_smp1$M,y=cSMR_smp1$yr.aug, n=cSMR_smp1$yr.obs, x=cSMR_smp1$X2, nMarked=cSMR_smp1$n.marked, 
+                  J=cSMR_smp1$J, effort=cam_eff, nlocs=cSMR_smp1$nlocs, ind=cSMR_smp1$ind, locs=cSMR_smp1$locs.scaled,
+                  xlim=cSMR_smp1$xlims.scaled, ylim=cSMR_smp1$ylims.scaled, A=cSMR_smp1$areaha.scaled)
 
 jd1 <- cSMR.data
-ji1 <- function() list(z=rep(1,M))
+ji1 <- function() list(z=rep(1,400))
 jp1 <- c("psi", "lam0", "sigma", "N", "D")
 
 
@@ -545,8 +502,8 @@ clusterExport(cl3, c("jd1","ji1","jp1","M"))
 
 cSMR_JAGS <- clusterEvalQ(cl3, {
   library(rjags)
-  jm1 <- jags.model("elk_cSMR.jag", jd1, ji1, n.chains=1, n.adapt=1000)
-  jc1 <- coda.samples(jm1, jp1, n.iter=30000)
+  jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=100)
+  jc1 <- coda.samples(jm1, jp1, n.iter=1000)
   return(as.mcmc(jc1))
 })
 
@@ -555,79 +512,15 @@ mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 (end.time <- Sys.time()) # 4 mins for 1000 iterations
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
-save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1.cSMR_30KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1.cSMR_30KIt.ET.RData")
+save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1.cSMR_10KIt.RData")
+save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1.cSMR_10KIt.ET.RData")
 stopCluster(cl3)
 
-# load("out/cSMR.data.RData")
-# load("out/constants.RData")
-# all.data <- c(cSMR.data, constants)
 
 
-cSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked, J=J,
-                  #K=K,
-                  nlocs=nlocs, ind=ind, locs=locs.scaled,
-                  xlim=xlims.scaled, ylim=ylims.scaled, A=areakm2.scaled)
-
-jd1 <- cSMR.data
-ji1 <- function() list(z=rep(1,M))
-jp1 <- c("psi", "lam0", "sigma", "N", "D")
 
 
-#############################################################################################
-###--- for NIMBLE
-cSMR.data <- list(locs=locs.scaled,y=yr.aug, n=yr.obs)
-constants <- list(M=M, x=X2, nMarked=n.marked, J=J, nlocs=nlocs,
-                  ind=ind, xlim=xlims.scaled, ylim=ylims.scaled, A=areakm2.scaled)
 
-# save("cSMR.data",file="out/cSMR.data.RData")
-# save("constants",file="out/constants.RData")
-
-
-# inits <- function() list(z=rep(1,M))	# Initialize at psi = 100% That seems inefficient...
-
-inits <- function(){
-  p <- runif(1, 0.1, 0.7)
-  K <- rbinom(1, M - n.marked, p) + n.marked	# Make sure we init with at least the marked animals.
-  list(
-    lam0 = runif(1, 0.1, 2),
-    psi = p,
-    sigma = runif(1, 0.1, 1),
-    s = cbind(runif(M, xlims.scaled[1], xlims.scaled[2]),
-              runif(M, ylims.scaled[1], ylims.scaled[2])),
-    z = c(rep(1,K), rep(0, M-K))
-  )
-}
-
-# Parameters to save:
-params <- c("psi", "lam0", "sigma", "N", "D")
-
-# Load the first Nimble function:
-# I would personally just write the other models in here too.
-source('NimbleModels.r')	# Load the model.
-
-# Note for Jo: Clustering with Nimble means running compiling 3 independent times for 3 clusters. For now
-# let's see how fast it is on one cpu.
-# This is where the foreach loop would have to go I think.
-#----------------------------------------------------
-
-# Compile the nimble model:
-Rmodel <- nimbleModel(cSMR, constants = constants,
-                      data = cSMR.data, inits = inits())
-conf <- configureMCMC(Rmodel)
-conf$setMonitors(params)
-
-# We will sample s[i,1:2] at the same time. Seems trivial but otherwise the
-# the compiler will sample s[1,1] then s[1,2] and that's inefficient.
-conf$removeSamplers('s')
-for(i in 1:M) conf$addSampler(target = paste0('s[', i, ', 1:2]'), type = 'RW_block')
-Rmcmc <- buildMCMC(conf)
-Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
-
-samples <- runMCMC(Cmcmc, 20000, nburnin = 10000,
-                   nchains = 3, thin = 10, inits = list(inits(), inits(), inits()))
-out <- mcmc.list(list(as.mcmc(samples[[1]]), as.mcmc(samples[[2]]), as.mcmc(samples[[3]])))
 
 ###############################################################
 ###--- View output (JAGS)
@@ -636,17 +529,48 @@ out <- mcmc.list(list(as.mcmc(samples[[1]]), as.mcmc(samples[[2]]), as.mcmc(samp
 ###--- view output
 mc.cSMR_JAGS.ET # 184 min for 20KIT, 60 cameras, M=2*N; 23:06:33 to 03:27:54 for 30KIT
 
-out <- mc.cSMR_JAGS
+2.72*109
+2.72*150
+2.72*204
 
-summary(window(out, start = 11001))
+out <- mc.cSMR_JAGS
+summary(out)
+plot(out)
+summary(window(out, start = 4001))
 # summary(window(out.eff,start = 1001))
 # summary(window(out.eff.unS,start = 1001))
 
-plot(window(out,start = 1001))
+plot(window(out,start = 4001))
 # plot(window(out.eff,start = 11001))
 # plot(window(out.eff,start = 11001))
 
 rejectionRate(window(out ,start = 1001))
+
+######################################
+#create function to load files and write output to table
+
+#function to create output table for JAGS output
+get_JAGS_output <- function(filename){
+  out <- filename
+  s <- summary(window(out, start = 4001))
+  gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
+  output_table <- rbind(as.data.frame(t(s$statistics)),
+                        as.data.frame(t(s$quantiles)),
+                        as.data.frame(t(gd$psrf)))
+  return(output_table)
+}
+
+#function to return model run time (hours)
+get_JAGS_ET <- function(filename){
+  ET <- parse_number(filename) # parse function no longer working, not sure why
+  return(ET)
+}
+
+######################################
+###--- output tables
+
+out_elk_SmpPrd1_cSMR_10KIt <- get_JAGS_output(out)
+write.csv(out_elk_SmpPrd1_cSMR_10KIt, "out/out_elk_SmpPrd1.cSMR_10KIt.csv")
 
 
 ################################
@@ -714,13 +638,15 @@ ggsave(cSMR_simsplot, file="out/cSMR_simsplot_40cam.PNG")
 #function to create output table for JAGS output
 get_JAGS_output <- function(filename){
   out <- filename
-  s <- summary(window(out, start = 11001))
-  gd <- gelman.diag(window(out, start = 11001),multivariate = FALSE)
+  s <- summary(window(out, start = 4001))
+  gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
   output_table <- rbind(as.data.frame(t(s$statistics)),
                         as.data.frame(t(s$quantiles)),
                         as.data.frame(t(gd$psrf)))
   return(output_table)
 }
+
+get_JAGS_output(out)
 
 #function to return model run time (hours)
 get_JAGS_ET <- function(filename){
