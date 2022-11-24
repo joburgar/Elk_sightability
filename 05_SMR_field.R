@@ -435,17 +435,7 @@ telem <- read.csv("data/Collars_Sechelt.csv", stringsAsFactors = TRUE) %>% as_ti
   dplyr::select(Collar_ID, SCTS__UTC_, Latitude_d, Longitude_ ,Easting, Northing) %>%
   rename(Date.Time.UTC = SCTS__UTC_, Latitude = Latitude_d, Longitude=Longitude_)
 
-### Create code to programmatically get sample period data
-# consider population periods based on seasonality and life history traits
-# check with Tristen (Dan / Darryl) to finalise seasonaliy dates
-# open hunting season (deer) in Sechelt Sept 1- Nov 30. Season 2 = hunting/rutting = Sept 15 - Nov 15
-# Goal is to have ~90 day intervals to maximise data while minimising violation of closed population assumption
-# have calving / summer season as first option and start of our research. Season 1 = calving = 15 June - 1 Sept
-# then overlap with our surveys and winter. Season 2 = winter = 1 Jan - 31 Mar
-
-
 ###--- telem locations
-
 telem$Date.Time.UTC <- ymd_hms(telem$Date.Time.UTC, tz = "UTC")
 telem$Date.Time.PST <- with_tz(telem$Date.Time.UTC, tz)
 telem <- telem %>% mutate(Year = year(Date.Time.PST), Month = lubridate::month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
@@ -469,9 +459,21 @@ ggplot()+
 ##########################################
 ###--- create camera data for different study periods
 
+# consider population periods based on seasonality and life history traits
+# check with Tristen (Dan / Darryl) to finalise seasonaliy dates
+# open hunting season (deer) in Sechelt Sept 1- Nov 30. Season 2 = hunting/rutting = Sept 15 - Nov 15
+# Goal is to have ~90 day intervals to maximise data while minimising violation of closed population assumption
+# have calving / summer season as first option and start of our research. Season 1 = calving = 15 June - 1 Sept
+# then overlap with our surveys and winter. Season 2 = winter = 1 Jan - 31 Mar
+
+
 cSMR_smp1 <- organise_camera_SMR_data(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf,
                                       M=400,coord.scale=100, buffer=20, start_date="2021-06-15", end_date="2021-09-01")
   
+cSMR_smp2 <- organise_camera_SMR_data(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf,
+                                      M=400,coord.scale=100, buffer=20, start_date="2022-01-01", end_date="2022-03-31")
+
+
 glimpse(cSMR_smp1)
 camop = cSMR_smp1$camop
 cam_eff <- rowSums(camop)/cSMR_smp1$K
@@ -479,7 +481,7 @@ length(cam_eff)
 
 
 # #########################################
-elk_dat %>% summarise(min=min(event_groupsize), mean = mean(event_groupsize),max = max(event_groupsize))
+# elk_dat %>% summarise(min=min(event_groupsize), mean = mean(event_groupsize),max = max(event_groupsize))
 # 2.72 is average group size (range 1 - 13)
 # so for now let's model events, and multiply density by average group size for total animals
 
@@ -490,10 +492,11 @@ cSMR.data <- list(M=cSMR_smp1$M,y=cSMR_smp1$yr.aug, n=cSMR_smp1$yr.obs, x=cSMR_s
                   J=cSMR_smp1$J, effort=cam_eff, nlocs=cSMR_smp1$nlocs, ind=cSMR_smp1$ind, locs=cSMR_smp1$locs.scaled,
                   xlim=cSMR_smp1$xlims.scaled, ylim=cSMR_smp1$ylims.scaled, A=cSMR_smp1$areaha.scaled)
 
-jd1 <- cSMR.data
-ji1 <- function() list(z=rep(1,400))
-jp1 <- c("psi", "lam0", "sigma", "N", "D")
+M=cSMR_smp1$M
 
+jd1 <- cSMR.data
+ji1 <- function() list(z=rep(1,M))
+jp1 <- c("psi", "lam0", "sigma", "N", "D")
 
 # run model - without accounting for effort
 (start.time <- Sys.time())
@@ -502,8 +505,8 @@ clusterExport(cl3, c("jd1","ji1","jp1","M"))
 
 cSMR_JAGS <- clusterEvalQ(cl3, {
   library(rjags)
-  jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=100)
-  jc1 <- coda.samples(jm1, jp1, n.iter=1000)
+  jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=1000)
+  jc1 <- coda.samples(jm1, jp1, n.iter=10000)
   return(as.mcmc(jc1))
 })
 
@@ -512,14 +515,9 @@ mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 (end.time <- Sys.time()) # 4 mins for 1000 iterations
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
-save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1.cSMR_10KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1.cSMR_10KIt.ET.RData")
+save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_10KIt.RData")
+save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1_effcSMR_10KIt.ET.RData")
 stopCluster(cl3)
-
-
-
-
-
 
 
 ###############################################################
