@@ -324,6 +324,8 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   cam_dat_smp <- cam_dat %>% filter(SmpPrd=="SmpPrd")
   elk_dat <- cam_dat_smp %>% filter(grepl("Cervus", species))
   
+  grp_size <- elk_dat %>% summarise(min = min(event_groupsize), mean = mean(event_groupsize), max = max(event_groupsize))
+  
   # to  match with telem with individuals
   ind.lookup <- as.data.frame(active.collars)
   colnames(ind.lookup) <- "active.collar"
@@ -393,19 +395,18 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   yr.obs <- rowSums(n) # removing k for faster processing
   
   return(list(M=M,yr.aug=yr.aug, yr.obs=yr.obs, n=n, Yobs_ind_dat=Yobs_ind_dat, X2=X2, n.marked=n.marked, J=J,K=K,
-              nlocs=nlocs, ind=ind, locs.scaled=locs.scaled, camop = camop,
+              nlocs=nlocs, ind=ind, locs.scaled=locs.scaled, camop = camop, grp_size=grp_size,
               xlims.scaled=xlims.scaled, ylims.scaled=ylims.scaled, areaha.scaled=areaha.scaled))
 }
 
 
 ################################################################################
 ###--- For field data ---###
+
 ###--- Input study area  / camera trap location data
 # trap ID for marking occasions - unknown so using camera array (elk marked by completely different process, independent)
 GISDir <- "//spatialfiles.bcgov/work/wlap/sry/Workarea/jburgar/Elk"
 EPU_poly <- st_read(dsn=GISDir, layer="EPU_NA")
-# SP_poly <- st_read(dsn=GISDir, layer="EPU_Sechelt_Peninsula")
-# st_area(SP_poly)*1e-6
 
 aoi <- EPU_poly %>% filter(EPU_Unit_N=="Sechelt Peninsula")
 
@@ -448,6 +449,8 @@ telem_sf <- st_as_sf(telem %>% filter(!is.na(Longitude)), coords = c("Longitude"
 telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
 telem_sf$Collar_ID <- as.factor(telem_sf$Collar_ID)
 
+telem_sf %>% summarise(min(Date.Time.PST), max(Date.Time.PST)) %>% st_drop_geometry()
+
 table(telem_sf$Collar_ID, telem_sf$Month)
 
 ggplot()+
@@ -474,31 +477,37 @@ cSMR_smp2 <- organise_camera_SMR_data(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, t
                                       M=400,coord.scale=100, buffer=20, start_date="2022-01-01", end_date="2022-03-31")
 
 
-glimpse(cSMR_smp1)
-camop = cSMR_smp1$camop
-cam_eff <- rowSums(camop)/cSMR_smp1$K
-length(cam_eff)
+cSMR_smp1$grp_size # 1  2.72    13
+cSMR_smp2$grp_size # 1  3.11    10
+
+cSMR_smp1$cam_eff <- rowSums(cSMR_smp1$camop)/cSMR_smp1$K
+cSMR_smp2$cam_eff <- rowSums(cSMR_smp2$camop)/cSMR_smp2$K
 
 
 # #########################################
-# elk_dat %>% summarise(min=min(event_groupsize), mean = mean(event_groupsize),max = max(event_groupsize))
-# 2.72 is average group size (range 1 - 13)
-# so for now let's model events, and multiply density by average group size for total animals
+# cSMR_smp1$grp_size # 1  2.72    13
+# cSMR_smp2$grp_size # 1  3.11    10
+# for now let's model events, and multiply density by average group size for total animals
 
 ## ----Data for SMR-----------------------------------------------------------
 # Run JAGS code
 
 cSMR.data <- list(M=cSMR_smp1$M,y=cSMR_smp1$yr.aug, n=cSMR_smp1$yr.obs, x=cSMR_smp1$X2, nMarked=cSMR_smp1$n.marked, 
-                  J=cSMR_smp1$J, effort=cam_eff, nlocs=cSMR_smp1$nlocs, ind=cSMR_smp1$ind, locs=cSMR_smp1$locs.scaled,
+                  J=cSMR_smp1$J, effort=cSMR_smp1$cam_eff, nlocs=cSMR_smp1$nlocs, ind=cSMR_smp1$ind, locs=cSMR_smp1$locs.scaled,
                   xlim=cSMR_smp1$xlims.scaled, ylim=cSMR_smp1$ylims.scaled, A=cSMR_smp1$areaha.scaled)
 
-M=cSMR_smp1$M
+cSMR.data <- list(M=cSMR_smp2$M,y=cSMR_smp2$yr.aug, n=cSMR_smp2$yr.obs, x=cSMR_smp2$X2, nMarked=cSMR_smp2$n.marked, 
+                  J=cSMR_smp2$J, effort=cSMR_smp2$cam_eff, nlocs=cSMR_smp2$nlocs, ind=cSMR_smp2$ind, locs=cSMR_smp2$locs.scaled,
+                  xlim=cSMR_smp2$xlims.scaled, ylim=cSMR_smp2$ylims.scaled, A=cSMR_smp2$areaha.scaled)
+
+
+M=400
 
 jd1 <- cSMR.data
 ji1 <- function() list(z=rep(1,M))
 jp1 <- c("psi", "lam0", "sigma", "N", "D")
 
-# run model - without accounting for effort
+# run model - accounting for effort
 (start.time <- Sys.time())
 cl3 <- makeCluster(3)
 clusterExport(cl3, c("jd1","ji1","jp1","M"))
@@ -506,17 +515,17 @@ clusterExport(cl3, c("jd1","ji1","jp1","M"))
 cSMR_JAGS <- clusterEvalQ(cl3, {
   library(rjags)
   jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=1000)
-  jc1 <- coda.samples(jm1, jp1, n.iter=10000)
+  jc1 <- coda.samples(jm1, jp1, n.iter=8000)
   return(as.mcmc(jc1))
 })
 
 mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 
-(end.time <- Sys.time()) # 4 mins for 1000 iterations
+(end.time <- Sys.time()) # 
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
-save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_10KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd1_effcSMR_10KIt.ET.RData")
+save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
+save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd2_effcSMR_8KIt.ET.RData")
 stopCluster(cl3)
 
 
@@ -525,11 +534,9 @@ stopCluster(cl3)
 
 ################################
 ###--- view output
-mc.cSMR_JAGS.ET # 184 min for 20KIT, 60 cameras, M=2*N; 23:06:33 to 03:27:54 for 30KIT
+mc.cSMR_JAGS.ET # 63 mins for 56 cams, M=400, 8000 IT
 
-2.72*109
-2.72*150
-2.72*204
+options(scipen = 999)
 
 out <- mc.cSMR_JAGS
 summary(out)
@@ -542,7 +549,7 @@ plot(window(out,start = 4001))
 # plot(window(out.eff,start = 11001))
 # plot(window(out.eff,start = 11001))
 
-rejectionRate(window(out ,start = 1001))
+rejectionRate(window(out ,start = 4001))
 
 ######################################
 #create function to load files and write output to table
@@ -550,7 +557,7 @@ rejectionRate(window(out ,start = 1001))
 #function to create output table for JAGS output
 get_JAGS_output <- function(filename){
   out <- filename
-  s <- summary(window(out, start = 4001))
+  s <- summary(window(out, start = 8001))
   gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
   output_table <- rbind(as.data.frame(t(s$statistics)),
                         as.data.frame(t(s$quantiles)),
@@ -567,8 +574,15 @@ get_JAGS_ET <- function(filename){
 ######################################
 ###--- output tables
 
-out_elk_SmpPrd1_cSMR_10KIt <- get_JAGS_output(out)
-write.csv(out_elk_SmpPrd1_cSMR_10KIt, "out/out_elk_SmpPrd1.cSMR_10KIt.csv")
+load("out/mc.elk_SmpPrd1_eff_cSMR_8KIt.RData")
+
+
+out_elk_SmpPrd1_cSMR_8KIt_8KBIN <- get_JAGS_output(out)
+write.csv(out_elk_SmpPrd1_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd1.cSMR_8KIt_8KBIN.csv")
+
+
+out_elk_SmpPrd2_cSMR_8KIt_8KBIN <- get_JAGS_output(out)
+write.csv(out_elk_SmpPrd2_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd2.cSMR_8KIt_8BIN.csv")
 
 
 ################################
