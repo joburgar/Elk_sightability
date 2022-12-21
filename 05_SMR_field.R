@@ -29,7 +29,7 @@ tz = Sys.timezone() # specify timezone in BC
 
 # LOAD PACKAGES ####
 list.of.packages <- c("tidyverse","lubridate", "readxl","timetk", "sf", "rgdal", "Cairo", "rjags","coda","doParallel",  
-                      "xtable", "R2jags","data.table","MCMCvis","PNWColors", "AHMbook")
+                      "xtable", "R2jags","data.table","MCMCvis","PNWColors", "AHMbook", "raster")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -254,7 +254,7 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   #  UTM Zone 10N, NAD83 (EPSG:26910)
   cam_coords <- st_coordinates(cam_sf %>% st_transform(26910))
   
-  camXY <- cam_lcn %>% select(station_id)
+  camXY <- cam_lcn %>% dplyr::select(station_id)
   camXY <- cbind(camXY, cam_coords)
   colnames (camXY) <- c("trap.id","x","y")
   
@@ -288,6 +288,7 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   study_period_days$SP_Occ <- rownames(study_period_days) # get the occasions for the study period, starting at 1
   
   ### creating operability matrix with rownames as station_id (same order as X2) and colnames as occasions
+  eff <- eff %>% filter(!station_id %in% stations_to_exclude)
   rownames(eff) <- eff$station_id
   camop <- as.matrix(eff[,2:ncol(eff)])
   colnames(camop) <- 1:ncol(camop)
@@ -301,9 +302,9 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   telem_sf_smp <- telem_sf %>% filter(SmpPrd=="SmpPrd") %>% arrange(Collar_ID)
   active.collars <- unique(telem_sf_smp$Collar_ID)
   active.collars <- droplevels(active.collars)
-  num.reps.collar <- telem_sf_smp %>% count(Collar_ID) %>% select(n) %>% st_drop_geometry()
+  num.reps.collar <- telem_sf_smp %>% count(Collar_ID) %>% dplyr::select(n) %>% st_drop_geometry()
   num.reps.collar <- as.numeric(num.reps.collar$n)
-  
+  # summary(num.reps.collar)
   locs <- as.data.frame(st_coordinates(telem_sf_smp %>% st_transform(crs=26910))) # convert to NAD 83 UTM Zone 10 for consistency with trapping grid (m)
   colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
   nlocs <- nrow(locs)
@@ -314,7 +315,7 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   
   ind <- rep(1:length(num.reps.collar), times=num.reps.collar) #  marked individuals and various locations from each
   
-  cam_dat <- cam_dat %>% select(station_id, species, report_names, date_time, collar, collar_tags, event_id, event_duration, event_groupsize, event_observations)
+  cam_dat <- cam_dat %>% dplyr::select(station_id, species, report_names, date_time, collar, collar_tags, event_id, event_duration, event_groupsize, event_observations)
   
   cam_dat$date_time <- ymd_hms(cam_dat$date_time, tz = tz)
   cam_dat$Date <- as.Date(cam_dat$date_time)
@@ -333,13 +334,15 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   
   elk_dat$collar_tags <- as.factor(elk_dat$collar_tags)
   elk_dat <- left_join(elk_dat, ind.lookup, by=c("collar_tags"="active.collar"))
-  elk_dat <- left_join(elk_dat %>% select(!date_time), 
+  elk_dat <- left_join(elk_dat %>% dplyr::select(!date_time), 
                        study.days %>% 
                          filter(between(Date, as.Date(start_date), as.Date(end_date))) %>% 
-                         select("Occ", "jDay"))
+                         dplyr::select("Occ", "jDay"))
   elk_dat$SP_Occ <- as.numeric(study_period_days$SP_Occ[match(elk_dat$Occ, study_period_days$Occ)])
   
-  ind_dat <- elk_dat %>% filter(!is.na(ind)) %>% select(!collar) %>% arrange(ind, SP_Occ)
+  ind_dat <- elk_dat %>% filter(!is.na(ind)) %>% dplyr::select(!collar) %>% arrange(ind, SP_Occ)
+  # ind_dat %>% count(station_id)
+  # ind_dat %>% count(ind)
   
   # dat$Yobs is a matrix nind:J:K
   # rows are the 9 inds, columns are the traps J, and different slices for each occasion
@@ -377,7 +380,7 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   n.tmp <- elk_dat %>% group_by(station_id) %>% count(SP_Occ)
   
   n.tmp$trapID <- rownames(camXY)[match(n.tmp$station_id, camXY$trap.id)]
-  n.tmp2 <- n.tmp %>% ungroup() %>% select(-station_id) %>% arrange(trapID)
+  n.tmp2 <- n.tmp %>% ungroup() %>% dplyr::select(-station_id) %>% arrange(trapID)
   
   # create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
   n <- array(0L, c(J,K))
@@ -401,6 +404,133 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
 
 
 ################################################################################
+################################################################################
+###--- Functions to create density maps
+spatial_density_obj.function <- function(out = out){
+  # summary(window(out[,c("D","lam0","sigma","psi")], start = 41001))
+  # gelman.diag(window(out[,c("D","lam0","sigma","psi")], start = 1001), multivariate = F)
+  # plot(window(out[,c("D","lam0","sigma","psi")], start = 1001))
+  
+  out1 <-out[[1]] # separate into individual chains - each 8000 iterations
+  out2 <-out[[2]]
+  out3 <-out[[3]]
+  
+  head(out1)
+  
+  Sxout1 <- out1[4001:8000,5:404]
+  Syout1 <- out1[4001:8000,405:804]
+  z1 <- out1[4001:8000, 806:1205]
+  
+  Sxout2 <- out2[4001:8000,5:404]
+  Syout2 <- out2[4001:8000,405:804]
+  z2 <- out2[4001:8000, 806:1205]
+  
+  Sxout3 <- out3[4001:8000,5:404]
+  Syout3 <- out3[4001:8000,405:804]
+  z3 <- out3[4001:8000, 806:1205]
+  
+  obj1 <- list(Sx=rbind(Sxout1, Sxout2, Sxout3), Sy=rbind(Syout1,Syout2,Syout3), z=rbind(z1,z2,z3))
+  
+  return(obj1)
+}
+
+
+SCRdensity <- function (obj, nx = 30, ny = 30, Xl = NULL, Xu = NULL, 
+                        Yl = NULL, Yu = NULL, scalein = 100, scaleout = 100, 
+                        col = "gray", ncolors = 10, whichguy = NULL){
+  #obj <- SC_obj 
+  
+  Sxout <- obj$Sx
+  Syout <- obj$Sy
+  z <- obj$z
+  niter <- nrow(z)
+  if (is.null(Xl)) {
+    Xl <- min(Sxout) * 0.999
+    Xu <- max(Sxout) * 1.001
+    Yl <- min(Syout) * 0.999
+    Yu <- max(Syout) * 1.001
+  }
+  xg <- seq(Xl, Xu, , nx)
+  yg <- seq(Yl, Yu, , ny)
+  guy <- col(Sxout)
+  Sxout <- cut(Sxout[z == 1], breaks = xg)
+  Syout <- cut(Syout[z == 1], breaks = yg)
+  if (is.null(whichguy)) {
+    Dn <- table(Sxout, Syout)/niter
+    area <- (yg[2] - yg[1]) * (xg[2] - xg[1]) * scalein
+    Dn <- (Dn/area) * scaleout
+  }
+  else {
+    Dn <- table(Sxout[guy == whichguy], Syout[guy == whichguy])/niter
+  }
+  cat("mean: ", mean(Dn), fill = TRUE)
+  par(mar = c(3, 3, 3, 6))
+  if (col == "gray") {
+    cc <- seq(3, 17, , 10)/20
+    cc <- rev(gray(cc))
+  }
+  else cc <- terrain.colors(ncolors)
+  
+  image(xg, yg, Dn)
+  #image.scale(Dn, col = cc)
+  box()
+  
+  return(list(grid = cbind(xg, yg), Dn = Dn))
+}
+
+
+###--- density map to raster function
+# Dn object from SCRdensity function
+# traplocs can be either matrix or dataframe of x and y locations (utm)
+# buffer in m units
+
+SCRraster <- function (Dn = Dn, traplocs = traplocs, buffer = buffer, crs = crs){
+  r <- raster(ncol=ncol(Dn), nrow=nrow(Dn))
+  values(r) <- Dn
+  as.raster(r)
+  t_r <- t(r) # for some reason map is flipped, need to transpose
+  
+  # add correct extent and coordinate system
+  minx <- min(traplocs[,1])
+  maxx <- max(traplocs[,1])
+  miny <- min(traplocs[,2])
+  maxy <- max(traplocs[,2])
+  
+  bb <- extent(minx-buffer, maxx+buffer,miny-buffer, maxy+buffer) 
+  extent(r) <- bb
+  r <- setExtent(r, bb, keepres=TRUE)
+  crs(r) <- crs
+  
+  bb <- extent(minx-buffer, maxx+buffer,miny-buffer, maxy+buffer) 
+  extent(t_r) <- bb
+  t_r <- setExtent(t_r, bb, keepres=TRUE)
+  crs(t_r) <- crs
+  
+  return(list(Dn_Traster = t_r, Dn_raster = r))
+}
+
+################################################################################
+################################################################################
+###--- function to load mcmc files and write output to table
+
+#function to create output table for JAGS output
+get_JAGS_output <- function(filename){
+  out <- filename
+  s <- summary(window(out, start = 8001))
+  gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
+  output_table <- rbind(as.data.frame(t(s$statistics)),
+                        as.data.frame(t(s$quantiles)),
+                        as.data.frame(t(gd$psrf)))
+  return(output_table)
+}
+
+#function to return model run time (hours)
+get_JAGS_ET <- function(filename){
+  ET <- parse_number(filename) # parse function no longer working, not sure why
+  return(ET)
+}
+
+################################################################################
 ###--- For field data ---###
 
 ###--- Input study area  / camera trap location data
@@ -420,7 +550,8 @@ cam_lcn <- cam_lcn %>% mutate(habitat = case_when(treatment=="Forest - Mixed" ~ 
 
 cam_lcn %>% count(habitat)
 cam_lcn <- cam_lcn %>% arrange(station_id)
-cam_lcn <- cam_lcn %>% filter(station_id != c("SPCS17", "SPCS61")) # remove the two stations without data
+stations_to_exclude <- c("SPCS17", "SPCS61","SPCS04") # remove the two stations without data and one cam positioned too high
+cam_lcn <- cam_lcn %>% filter(!station_id %in% stations_to_exclude) 
 
 cam_sf <- st_as_sf(cam_lcn,coords = c("longitude", "latitude"), crs = 4326)
 
@@ -451,8 +582,7 @@ telem_sf$Collar_ID <- as.factor(telem_sf$Collar_ID)
 
 telem_sf %>% summarise(min(Date.Time.PST), max(Date.Time.PST)) %>% st_drop_geometry()
 
-table(telem_sf$Collar_ID, telem_sf$Month)
-
+unique(telem_sf$Collar_ID)
 ggplot()+
   geom_sf(data=aoi)+
   geom_sf(data=telem_sf %>% filter(Month %in% c("Feb","Mar","Apr")),aes(fill=Collar_ID, col=Collar_ID))+
@@ -481,8 +611,17 @@ cSMR_smp1$grp_size # 1  2.72    13
 cSMR_smp2$grp_size # 1  3.11    10
 
 cSMR_smp1$cam_eff <- rowSums(cSMR_smp1$camop)/cSMR_smp1$K
-cSMR_smp2$cam_eff <- rowSums(cSMR_smp2$camop)/cSMR_smp2$K
+cSMR_smp1$cam_eff[cSMR_smp1$cam_eff==0]
+length(cSMR_smp1$cam_eff)
 
+length(cSMR_smp1$yr.obs[cSMR_smp1$yr.obs!=0])
+length(cSMR_smp1$yr.obs)
+
+cSMR_smp2$cam_eff <- rowSums(cSMR_smp2$camop)/cSMR_smp2$K
+cSMR_smp2$cam_eff[cSMR_smp2$cam_eff==0]
+length(cSMR_smp1$cam_eff)
+
+length(cSMR_smp2$yr.obs[cSMR_smp2$yr.obs!=0])
 
 # #########################################
 # cSMR_smp1$grp_size # 1  2.72    13
@@ -505,6 +644,7 @@ M=400
 
 jd1 <- cSMR.data
 ji1 <- function() list(z=rep(1,M))
+ji1 <- function() list(z = rowSums(as.data.frame(jd1$yr.aug))) # for cSMR_smp2 (nodes inconsistent with parents message)
 jp1 <- c("psi", "lam0", "sigma", "N", "D")
 
 # run model - accounting for effort
@@ -524,58 +664,39 @@ mc.cSMR_JAGS <- mcmc.list(cSMR_JAGS)
 (end.time <- Sys.time()) # 
 mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
+# save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_8KIt.RData")
+# save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_8KIt_map.RData") # if including s and z in parameters to watch
 save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
-save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd2_effcSMR_8KIt.ET.RData")
+# save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd2_effcSMR_8KIt.ET.RData")
 stopCluster(cl3)
 
 
 ###############################################################
-###--- View output (JAGS)
-
-################################
 ###--- view output
-mc.cSMR_JAGS.ET # 63 mins for 56 cams, M=400, 8000 IT
+mc.cSMR_JAGS.ET # 62 mins for 55 cams, M=400, 8000 IT
 
 options(scipen = 999)
 
-out <- mc.cSMR_JAGS
-summary(out)
-plot(out)
-summary(window(out, start = 4001))
-# summary(window(out.eff,start = 1001))
-# summary(window(out.eff.unS,start = 1001))
+# out <- mc.cSMR_JAGS
+# summary(out)
+# plot(out)
+# summary(window(out, start = 4001))
+# # summary(window(out.eff,start = 1001))
+# # summary(window(out.eff.unS,start = 1001))
+# 
+# plot(window(out,start = 4001))
+# # plot(window(out.eff,start = 11001))
+# # plot(window(out.eff,start = 11001))
+# 
+# rejectionRate(window(out ,start = 4001))
 
-plot(window(out,start = 4001))
-# plot(window(out.eff,start = 11001))
-# plot(window(out.eff,start = 11001))
-
-rejectionRate(window(out ,start = 4001))
-
-######################################
-#create function to load files and write output to table
-
-#function to create output table for JAGS output
-get_JAGS_output <- function(filename){
-  out <- filename
-  s <- summary(window(out, start = 8001))
-  gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
-  output_table <- rbind(as.data.frame(t(s$statistics)),
-                        as.data.frame(t(s$quantiles)),
-                        as.data.frame(t(gd$psrf)))
-  return(output_table)
-}
-
-#function to return model run time (hours)
-get_JAGS_ET <- function(filename){
-  ET <- parse_number(filename) # parse function no longer working, not sure why
-  return(ET)
-}
 
 ######################################
 ###--- output tables
 
-load("out/mc.elk_SmpPrd1_eff_cSMR_8KIt.RData")
-
+load("out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
+out <- mc.cSMR_JAGS
+str(out)
 
 out_elk_SmpPrd1_cSMR_8KIt_8KBIN <- get_JAGS_output(out)
 write.csv(out_elk_SmpPrd1_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd1.cSMR_8KIt_8KBIN.csv")
@@ -585,7 +706,52 @@ out_elk_SmpPrd2_cSMR_8KIt_8KBIN <- get_JAGS_output(out)
 write.csv(out_elk_SmpPrd2_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd2.cSMR_8KIt_8BIN.csv")
 
 
+###---
+# all MCMC output is in 100 m units
+# if input coordinate system is in "100 m" then input scalein=1
+# so have as 1 if want in 100 m units
+load("out/mc.elk_SmpPrd1_eff_cSMR_8KIt_map.RData")
+out <- mc.cSMR_JAGS
+
+SC_obj <- spatial_density_obj.function(out = out)
+str(SC_obj)
+
+str(cSMR_smp2)
+cam_coords <- st_coordinates(cam_sf %>% st_transform(26910))
+
+camXY <- cam_lcn %>% dplyr::select(station_id)
+camXY <- cbind(camXY, cam_coords)
+colnames (camXY) <- c("trap.id","x","y")
+
+traplocs <- as.data.frame(camXY[,c("x","y")])
+traplocs
+buffer <- 2000 # * 100 m scale for 2000 m buffer = 20
+sa_x <- max(traplocs$x+buffer) - min(traplocs$x-buffer) 
+sa_y <- max(traplocs$y+buffer) - min(traplocs$y-buffer) 
+
+SC_map <- SCRdensity(SC_obj, nx=25, ny=25)
+str(SC_map)
+SC_raster <- SCRraster(Dn = SC_map$Dn, traplocs = traplocs, buffer = 20, crs = c("+init=epsg:26910"))
+plot(flip(SC_raster$Dn_Traster, direction="y"))
+writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_SmpPrd1_eff_cSMR_8KIt_raster_diry.tif", overwrite=TRUE)
+
+Cairo(file="out/elk_SmpPrd1_eff_cSMR_8KI_SpatialDensity.PNG", 
+      type="png",
+      width=2000, 
+      height=1600, 
+      pointsize=12,
+      bg="white",
+      dpi=300)
+plot(flip(SC_raster$Dn_Traster, direction="y"))
+points(traplocs, pch=20, cex=1)
+mtext(paste("Elk Summer 2021\nRealised Density Map",sep=""), side = 3, line = 1, cex=1.25)
+dev.off()
+
+
+getwd()
 ################################
+# For simulations
+
 load("out/mc.elk.sim.cSMR_60cam_9telem_20KIt.RData")
 
 str(out[1])
