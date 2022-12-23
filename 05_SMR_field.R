@@ -248,7 +248,7 @@ telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
 ###--- function to organise camera data for SMR
 
 # consider area in ha, unit size is 100 m = 1 unit, buffer in unit lengths
-organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf, M=400, 
+organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, telem_sf=telem_sf, M=800, 
                                      coord.scale=100, buffer=20, start_date="2021-06-15", end_date="2021-09-01"){
   ###--- Camera meta data
   #  UTM Zone 10N, NAD83 (EPSG:26910)
@@ -377,7 +377,8 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   # dim(Yobs)
   # sum(yr.aug) # should be the same as sum(Yobs)
   
-  n.tmp <- elk_dat %>% group_by(station_id) %>% count(SP_Occ)
+  # n.tmp <- elk_dat %>% group_by(station_id, SP_Occ) %>% summarise(n = sum(event_groupsize))
+  n.tmp <- elk_dat %>% group_by(station_id) %>% count(SP_Occ) # to use if modelling groups and multiplying by group size
   
   n.tmp$trapID <- rownames(camXY)[match(n.tmp$station_id, camXY$trap.id)]
   n.tmp2 <- n.tmp %>% ungroup() %>% dplyr::select(-station_id) %>% arrange(trapID)
@@ -616,12 +617,15 @@ length(cSMR_smp1$cam_eff)
 
 length(cSMR_smp1$yr.obs[cSMR_smp1$yr.obs!=0])
 length(cSMR_smp1$yr.obs)
+sum(cSMR_smp1$yr.obs)
 
 cSMR_smp2$cam_eff <- rowSums(cSMR_smp2$camop)/cSMR_smp2$K
 cSMR_smp2$cam_eff[cSMR_smp2$cam_eff==0]
-length(cSMR_smp1$cam_eff)
+length(cSMR_smp2$cam_eff)
 
 length(cSMR_smp2$yr.obs[cSMR_smp2$yr.obs!=0])
+length(cSMR_smp2$yr.obs)
+sum(cSMR_smp2$yr.obs)
 
 # #########################################
 # cSMR_smp1$grp_size # 1  2.72    13
@@ -644,8 +648,7 @@ M=400
 
 jd1 <- cSMR.data
 ji1 <- function() list(z=rep(1,M))
-ji1 <- function() list(z = rowSums(as.data.frame(jd1$yr.aug))) # for cSMR_smp2 (nodes inconsistent with parents message)
-jp1 <- c("psi", "lam0", "sigma", "N", "D")
+jp1 <- c("psi", "lam0", "sigma", "N", "D", "s", "z")
 
 # run model - accounting for effort
 (start.time <- Sys.time())
@@ -666,7 +669,7 @@ mc.cSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
 
 # save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_8KIt.RData")
 # save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd1_eff_cSMR_8KIt_map.RData") # if including s and z in parameters to watch
-save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
+save("mc.cSMR_JAGS",file="out/mc.elk_SmpPrd2_eff_cSMR_8KIt_map.RData")
 # save("mc.cSMR_JAGS.ET",file="out/mc.elk_SmpPrd2_effcSMR_8KIt.ET.RData")
 stopCluster(cl3)
 
@@ -689,7 +692,6 @@ options(scipen = 999)
 # # plot(window(out.eff,start = 11001))
 # 
 # rejectionRate(window(out ,start = 4001))
-
 
 ######################################
 ###--- output tables
@@ -731,11 +733,12 @@ sa_y <- max(traplocs$y+buffer) - min(traplocs$y-buffer)
 
 SC_map <- SCRdensity(SC_obj, nx=25, ny=25)
 str(SC_map)
-SC_raster <- SCRraster(Dn = SC_map$Dn, traplocs = traplocs, buffer = 20, crs = c("+init=epsg:26910"))
+SC_raster <- SCRraster(Dn = SC_map$Dn, traplocs = traplocs, buffer = 2000, crs = c("+init=epsg:26910"))
 plot(flip(SC_raster$Dn_Traster, direction="y"))
 writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_SmpPrd1_eff_cSMR_8KIt_raster_diry.tif", overwrite=TRUE)
+writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_SmpPrd2_eff_cSMR_8KIt_raster_diry.tif", overwrite=TRUE)
 
-Cairo(file="out/elk_SmpPrd1_eff_cSMR_8KI_SpatialDensity.PNG", 
+Cairo(file="out/elk_SmpPrd2_eff_cSMR_8KI_SpatialDensity.PNG", 
       type="png",
       width=2000, 
       height=1600, 
@@ -744,7 +747,7 @@ Cairo(file="out/elk_SmpPrd1_eff_cSMR_8KI_SpatialDensity.PNG",
       dpi=300)
 plot(flip(SC_raster$Dn_Traster, direction="y"))
 points(traplocs, pch=20, cex=1)
-mtext(paste("Elk Summer 2021\nRealised Density Map",sep=""), side = 3, line = 1, cex=1.25)
+mtext(paste("Elk Winter 2022\nRealised Density Map",sep=""), side = 3, line = 1, cex=1.25)
 dev.off()
 
 
