@@ -325,7 +325,7 @@ organise_camera_SMR_data <- function(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, te
   cam_dat_smp <- cam_dat %>% filter(SmpPrd=="SmpPrd")
   elk_dat <- cam_dat_smp %>% filter(grepl("Cervus", species))
   
-  grp_size <- elk_dat %>% summarise(min = min(event_groupsize), mean = mean(event_groupsize), max = max(event_groupsize))
+  grp_size <- elk_dat %>% summarise(min = min(event_groupsize), mean = mean(event_groupsize), max = max(event_groupsize), median = median(event_groupsize))
   
   # to  match with telem with individuals
   ind.lookup <- as.data.frame(active.collars)
@@ -556,6 +556,16 @@ cam_lcn <- cam_lcn %>% filter(!station_id %in% stations_to_exclude)
 
 cam_sf <- st_as_sf(cam_lcn,coords = c("longitude", "latitude"), crs = 4326)
 
+# To find out mean, min, max and se of min camera spacing
+# library(nngeo)
+# cam_dist <- st_nn(cam_sf %>% st_transform(crs=3005), cam_sf %>% st_transform(crs=3005), k=2, returnDist=TRUE)
+# cam_dist <- unlist(cam_dist$dist)
+# cam_dist <- cam_dist[cam_dist>0]
+# mean(cam_dist) # 1888.764
+# sd(cam_dist)/sqrt(length(cam_dist)) # 57.18362
+# min(cam_dist) # 1358.971
+# max(cam_dist) # 3494.763
+
 cam_dat <- read.csv("data/SPCS_30min_Independent.csv", head=TRUE) %>% as_tibble() %>% type_convert()
 
 ggplot()+
@@ -608,8 +618,11 @@ cSMR_smp2 <- organise_camera_SMR_data(cam_sf=cam_sf, cam_dat=cam_dat, eff=eff, t
                                       M=400,coord.scale=100, buffer=20, start_date="2022-01-01", end_date="2022-03-31")
 
 
-cSMR_smp1$grp_size # 1  2.72    13
-cSMR_smp2$grp_size # 1  3.11    10
+elk_dat <- cam_dat %>% filter(grepl("Cervus", species))
+elk_dat %>% summarise(mean = mean(event_groupsize), sd = sd(event_groupsize))
+summary(elk_dat$event_groupsize)
+cSMR_smp1$grp_size # 1  2.72    13 2
+cSMR_smp2$grp_size # 1  3.11    10 2
 
 cSMR_smp1$cam_eff <- rowSums(cSMR_smp1$camop)/cSMR_smp1$K
 cSMR_smp1$cam_eff[cSMR_smp1$cam_eff==0]
