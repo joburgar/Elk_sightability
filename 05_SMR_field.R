@@ -37,47 +37,109 @@ lapply(list.of.packages, require, character.only = TRUE)
 
 
 ###############################################################################
+# Load study area #
+aoi_quad <- st_read(dsn="input", layer="Sechelt_quadrants")
+aoi <- aoi_quad %>% 
+  summarise(across(geometry, ~ st_union(.))) %>%
+  summarise(across(geometry, ~ st_combine(.)))
+
+# create grid cells 600 x 600 m to emulate distance between transect lines (can see 300 m on either side)
+library(units)
+
+aoi_grid <- st_make_grid(st_bbox(aoi), cellsize=600, square=TRUE) #  grid for entire AOI (rectangle)
+# rm(aoi_grid)
+aSMR_grid = st_sf(geom = aoi_grid)
+aSMR_grid$Areakm2 <- st_area(aSMR_grid)*1e-6
+aSMR_grid <- drop_units(aSMR_grid)
+aSMR_grid$Id <- as.numeric(rownames(aSMR_grid))
+
+# reduce to the buffered BC border for computation ease
+aoi_aSMR_grid <- st_intersection(aSMR_grid, aoi)
+ggplot()+
+  geom_sf(data=aoi_aSMR_grid)
+
 # LOAD AERIAL DATA ####
 aerialDIR <- "//Sfp.idir.bcgov/s140/S40073/FLNR RM/!Terrestrial Wildlife Section/1_Species & Values/Roosevelt Elk/Sightability Project/4. Technical/Data/Aerial_SMR"
 list.files(aerialDIR)
 
 # transects
-aerialTransects <- st_read(paste(aerialDIR,"Flight3/Path_Flight3.kml", sep="/")) %>% st_transform(26910)
-aerialTransects$length <- st_length(aerialTransects)
+aerialTransect1 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight1_final.kml", sep="/")) %>% st_transform(26910)
+aerialTransect1$Transect <- "aSMR 1"
 
-# need to sort through the transect data - review SCR book for line transect surveys
-tmp1 <- st_cast(aerialTransects, "MULTIPOINT")
-tmp2 <- st_coordinates(tmp1)
-tmp3 <- tmp2[seq(1, nrow(tmp2), 20), ]
-tmp4 <- st_cast(aerialTransects %>% filter(grepl("34", Name)), "MULTIPOINT")
+aerialTransect2 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight2_final.kml", sep="/")) %>% st_transform(26910)
+aerialTransect2$Transect <- "aSMR 2"
 
+aerialTransect3 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight3_final.kml", sep="/")) %>% st_transform(26910)
+aerialTransect3$Transect <- "aSMR 3"
 
-dim(tmp4)
-plot(tmp3)
+aerialTransect <- rbind(aerialTransect1, aerialTransect2, aerialTransect3)
+aerialTransect$length <- st_length(aerialTransect)
+
+Cairo(file="out/aSMR_TransectsFlown.PNG", 
+      type="png",
+      width=5000, 
+      height=1600, 
+      pointsize=12,
+      bg="white",
+      dpi=300)
+ggplot()+
+  geom_sf(data=aoi)+
+  geom_sf(data=aerialTransect)+
+  facet_wrap(~Transect)
+dev.off()
+
+# determine grid cell of each transect for 'operability'
+glimpse(aoi_aSMR_grid)
 
 ggplot()+
-  geom_sf(data=aerialTransects, col="black") +
-  # geom_sf(data=tmp4)
-  # geom_sf(data=test, col="red") +
-  geom_sf(data=obsSMR_sf)
-  
+  geom_sf(data=aoi_aSMR_grid, aes(fill=Id))
 
+grid_transect <- st_join(aoi_aSMR_grid %>% st_transform(3005), aerialTransect %>% st_transform(3005)) %>%
+  dplyr::select(Id, Transect) %>% st_drop_geometry() %>% as_tibble()
+glimpse(grid_transect)
+grid_transect$aSMR_grid_ID <- floor(grid_transect$Id)
+
+grid_transect_aSMR1 <- grid_transect %>% filter(Transect=="aSMR 1") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR1 <- as.vector(unique(grid_transect_aSMR1$aSMR_grid_ID))
+
+grid_transect_aSMR2 <- grid_transect %>% filter(Transect=="aSMR 2") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR2 <- as.vector(unique(grid_transect_aSMR2$aSMR_grid_ID))
+
+grid_transect_aSMR3 <- grid_transect %>% filter(Transect=="aSMR 3") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR3 <- as.vector(unique(grid_transect_aSMR3$aSMR_grid_ID))
+
+
+aoi_aSMR_grid$aSMR1_grid <- aoi_aSMR_grid$aSMR2_grid <- aoi_aSMR_grid$aSMR3_grid <- NA
+aoi_aSMR_grid$aSMR1_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR1 ~ 1, 
+                                      TRUE ~ 0)
+aoi_aSMR_grid$aSMR2_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR2 ~ 1, 
+                                      TRUE ~ 0)
+aoi_aSMR_grid$aSMR3_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR3 ~ 1, 
+                                      TRUE ~ 0)
+# need to figure out the plotting, or add the rows (longer) and facet wrap
+ggplot()+
+  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR1_grid==1), fill="black") +
+  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR2_grid==1), fill="blue") +
+  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR3_grid==1), fill="red")
+
+
+###############################################################################
 # survey data
 aerialSMR1 <- read_excel(paste(aerialDIR,"Flight1/2022Mar2_SMR_Data.xlsx", sep="/"), 
                        sheet = "Data", range = "A1:T12", col_types = "text") %>% type_convert()
-aerialSMR1$SurveyNum <- 1
+aerialSMR1$SurveyNum <- "aSMR 1"
 
 aerialSMR2 <- read_excel(paste(aerialDIR,"Flight2/2022Mar15_SMR_Data.xlsx", sep="/"), 
                          sheet = "Data", range = "A1:U13", col_types = "text") %>% type_convert()
-aerialSMR2$SurveyNum <- 2
+aerialSMR2$SurveyNum <- "aSMR 2"
 
 aerialSMR3 <- read_excel(paste(aerialDIR,"Flight3/2022Mar28_SMR_Data.xlsx", sep="/"), 
                          sheet = "Data", range = "A1:U10", col_types = "text") %>% type_convert()
-aerialSMR3$SurveyNum <- 3
+aerialSMR3$SurveyNum <- "aSMR 3"
 
-aerialSMR <- bind_rows(aerialSMR1 %>% select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum),
-                       aerialSMR2 %>% select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum), 
-                       aerialSMR3 %>% select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum))
+aerialSMR <- bind_rows(aerialSMR1 %>% dplyr::select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum),
+                       aerialSMR2 %>% dplyr::select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum), 
+                       aerialSMR3 %>% dplyr::select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum))
 
 aerialSMR$Latitude <- as.numeric(substr(aerialSMR$`Elk Lat & Long`, 1, 9))
 aerialSMR$Longitude <- as.numeric(substr(aerialSMR$`Elk Lat & Long`, 12, nchar(aerialSMR$`Elk Lat & Long`)))
@@ -105,20 +167,28 @@ aerialSMR$GrpSze <- case_when(aerialSMR$Collar_ID==42256 ~ ceiling(17/2),
 
 obsSMR_sf <- st_as_sf(aerialSMR, coords=c("Longitude", "Latitude"), crs=4326)
 
-
 aerialSMR %>% filter(!is.na(Collar_ID))
 # 7 active collars seen during 3 surveys: 3 in Survey1, 1 in Survey2, and 4 in Survey3
 # 1 collar was seen in two surveys for a total of 8 collared observations
 
 active.collars 
 
+aSMRnum <- c("aSMR 2")
+
+Cairo(file="out/aSMR3_TransectsObs.PNG", 
+      type="png",
+      width=2000, 
+      height=3000, 
+      pointsize=16,
+      bg="white",
+      dpi=300)
 ggplot()+
   geom_sf(data=aoi)+
-  geom_sf(data=aerialTransects %>% filter(grepl(02, Name))) +
-  geom_sf(data=obsSMR_sf %>% st_transform(26910)) +
-  geom_sf(data=obsSMR_sf %>% filter(!is.na(Collar_ID)) %>% st_transform(26910), col="red")
-  
-
+  geom_sf(data=aerialTransect %>% filter(Transect==aSMRnum)) +
+  geom_sf(data=obsSMR_sf %>% filter(SurveyNum==aSMRnum) %>% st_transform(26910)) +
+  geom_sf(data=obsSMR_sf %>% filter(SurveyNum==aSMRnum) %>% filter(!is.na(Collar_ID)) %>% st_transform(26910), col="red")+
+  ggtitle("Aerial SMR Survey 3 \nTransects and Observations")
+dev.off()
 
 aerialSMR %>% count(Collar_ID)
 
