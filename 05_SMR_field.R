@@ -29,22 +29,21 @@ tz = Sys.timezone() # specify timezone in BC
 
 # LOAD PACKAGES ####
 list.of.packages <- c("tidyverse","lubridate", "readxl","timetk", "sf", "rgdal", "Cairo", "rjags","coda","doParallel",  
-                      "xtable", "R2jags","data.table","MCMCvis","PNWColors", "AHMbook", "raster")
+                      "xtable", "R2jags","data.table","MCMCvis","PNWColors", "AHMbook", "raster","units")
 # Check you have them and load them
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, character.only = TRUE)
 
-
 ###############################################################################
 # Load study area #
 aoi_quad <- st_read(dsn="input", layer="Sechelt_quadrants")
-aoi <- aoi_quad %>% 
+
+aoi <- aoi_quad %>%
   summarise(across(geometry, ~ st_union(.))) %>%
   summarise(across(geometry, ~ st_combine(.)))
 
 # create grid cells 600 x 600 m to emulate distance between transect lines (can see 300 m on either side)
-library(units)
 
 aoi_grid <- st_make_grid(st_bbox(aoi), cellsize=600, square=TRUE) #  grid for entire AOI (rectangle)
 # rm(aoi_grid)
@@ -52,6 +51,7 @@ aSMR_grid = st_sf(geom = aoi_grid)
 aSMR_grid$Areakm2 <- st_area(aSMR_grid)*1e-6
 aSMR_grid <- drop_units(aSMR_grid)
 aSMR_grid$Id <- as.numeric(rownames(aSMR_grid))
+nrow(aSMR_grid)
 
 # reduce to the buffered BC border for computation ease
 aoi_aSMR_grid <- st_intersection(aSMR_grid, aoi)
@@ -90,6 +90,7 @@ dev.off()
 
 # determine grid cell of each transect for 'operability'
 glimpse(aoi_aSMR_grid)
+nrow(aoi_aSMR_grid)
 
 ggplot()+
   geom_sf(data=aoi_aSMR_grid, aes(fill=Id))
@@ -108,19 +109,33 @@ grid_transect_aSMR2 <- as.vector(unique(grid_transect_aSMR2$aSMR_grid_ID))
 grid_transect_aSMR3 <- grid_transect %>% filter(Transect=="aSMR 3") %>% dplyr::select(aSMR_grid_ID)
 grid_transect_aSMR3 <- as.vector(unique(grid_transect_aSMR3$aSMR_grid_ID))
 
+aSMR_grid$aSMR1 <- aSMR_grid$aSMR2 <- aSMR_grid$aSMR3 <- NA
+aSMR_grid$aSMR1 <- case_when(aSMR_grid$Id %in% grid_transect_aSMR1 ~ 1, 
+                                      TRUE ~ 0)
+aSMR_grid$aSMR2 <- case_when(aSMR_grid$Id %in% grid_transect_aSMR2 ~ 1, 
+                                      TRUE ~ 0)
+aSMR_grid$aSMR3 <- case_when(aSMR_grid$Id %in% grid_transect_aSMR3 ~ 1, 
+                                      TRUE ~ 0)
 
-aoi_aSMR_grid$aSMR1_grid <- aoi_aSMR_grid$aSMR2_grid <- aoi_aSMR_grid$aSMR3_grid <- NA
-aoi_aSMR_grid$aSMR1_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR1 ~ 1, 
-                                      TRUE ~ 0)
-aoi_aSMR_grid$aSMR2_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR2 ~ 1, 
-                                      TRUE ~ 0)
-aoi_aSMR_grid$aSMR3_grid <- case_when(aoi_aSMR_grid$Id %in% grid_transect_aSMR3 ~ 1, 
-                                      TRUE ~ 0)
+aSMR_oper <- aSMR_grid %>% pivot_longer(cols=starts_with("aSMR"), values_to = "operability") %>% dplyr::select(-Areakm2)
+aSMR_oper <- st_intersection(aSMR_oper, aoi)
+
 # need to figure out the plotting, or add the rows (longer) and facet wrap
+pal=pnw_palette("Winter",2, type = "discrete")
+
+Cairo(file="out/aSMR_Operability.PNG", 
+      type="png",
+      width=5000, 
+      height=1600, 
+      pointsize=12,
+      bg="white",
+      dpi=300)
 ggplot()+
-  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR1_grid==1), fill="black") +
-  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR2_grid==1), fill="blue") +
-  geom_sf(data=aoi_aSMR_grid %>% filter(aSMR3_grid==1), fill="red")
+  geom_sf(data = aSMR_oper, aes(fill=as.factor(operability)))+
+  scale_fill_manual(values=unique(pal))+
+  facet_wrap(~name)+
+  theme(legend.title=element_blank())
+dev.off()
 
 
 ###############################################################################
@@ -171,8 +186,6 @@ aerialSMR %>% filter(!is.na(Collar_ID))
 # 7 active collars seen during 3 surveys: 3 in Survey1, 1 in Survey2, and 4 in Survey3
 # 1 collar was seen in two surveys for a total of 8 collared observations
 
-active.collars 
-
 aSMRnum <- c("aSMR 2")
 
 Cairo(file="out/aSMR3_TransectsObs.PNG", 
@@ -191,7 +204,8 @@ ggplot()+
 dev.off()
 
 aerialSMR %>% count(Collar_ID)
-
+ 
+st_join(obsSMR_sf %>% st_transform(3005), aSMR_grid %>% st_transform(3005))
 as.data.frame(aerialSMR)
 
 active.collars
