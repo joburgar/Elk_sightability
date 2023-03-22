@@ -39,12 +39,9 @@ lapply(list.of.packages, require, character.only = TRUE)
 # Load study area #
 aoi_quad <- st_read(dsn="input", layer="Sechelt_quadrants")
 
-aoi <- aoi_quad %>%
-  summarise(across(geometry, ~ st_union(.))) %>%
-  summarise(across(geometry, ~ st_combine(.)))
+aoi <- aoi_quad %>% st_transform(3005) %>% st_buffer(400) %>% st_union() %>% st_sf()
 
 # create grid cells 600 x 600 m to emulate distance between transect lines (can see 300 m on either side)
-
 aoi_grid <- st_make_grid(st_bbox(aoi), cellsize=600, square=TRUE) #  grid for entire AOI (rectangle)
 # rm(aoi_grid)
 aSMR_grid = st_sf(geom = aoi_grid)
@@ -64,13 +61,13 @@ list.files(aerialDIR)
 
 # transects
 aerialTransect1 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight1_final.kml", sep="/")) %>% st_transform(26910)
-aerialTransect1$Transect <- "aSMR 1"
+aerialTransect1$Transect <- "aSMR1"
 
 aerialTransect2 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight2_final.kml", sep="/")) %>% st_transform(26910)
-aerialTransect2$Transect <- "aSMR 2"
+aerialTransect2$Transect <- "aSMR2"
 
 aerialTransect3 <- st_read(paste(getwd(),"data/SMR_flight_data/Transects_300m_Flight3_final.kml", sep="/")) %>% st_transform(26910)
-aerialTransect3$Transect <- "aSMR 3"
+aerialTransect3$Transect <- "aSMR3"
 
 aerialTransect <- rbind(aerialTransect1, aerialTransect2, aerialTransect3)
 aerialTransect$length <- st_length(aerialTransect)
@@ -100,13 +97,13 @@ grid_transect <- st_join(aoi_aSMR_grid %>% st_transform(3005), aerialTransect %>
 glimpse(grid_transect)
 grid_transect$aSMR_grid_ID <- floor(grid_transect$Id)
 
-grid_transect_aSMR1 <- grid_transect %>% filter(Transect=="aSMR 1") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR1 <- grid_transect %>% filter(Transect=="aSMR1") %>% dplyr::select(aSMR_grid_ID)
 grid_transect_aSMR1 <- as.vector(unique(grid_transect_aSMR1$aSMR_grid_ID))
 
-grid_transect_aSMR2 <- grid_transect %>% filter(Transect=="aSMR 2") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR2 <- grid_transect %>% filter(Transect=="aSMR2") %>% dplyr::select(aSMR_grid_ID)
 grid_transect_aSMR2 <- as.vector(unique(grid_transect_aSMR2$aSMR_grid_ID))
 
-grid_transect_aSMR3 <- grid_transect %>% filter(Transect=="aSMR 3") %>% dplyr::select(aSMR_grid_ID)
+grid_transect_aSMR3 <- grid_transect %>% filter(Transect=="aSMR3") %>% dplyr::select(aSMR_grid_ID)
 grid_transect_aSMR3 <- as.vector(unique(grid_transect_aSMR3$aSMR_grid_ID))
 
 aSMR_grid$aSMR1 <- aSMR_grid$aSMR2 <- aSMR_grid$aSMR3 <- NA
@@ -117,8 +114,36 @@ aSMR_grid$aSMR2 <- case_when(aSMR_grid$Id %in% grid_transect_aSMR2 ~ 1,
 aSMR_grid$aSMR3 <- case_when(aSMR_grid$Id %in% grid_transect_aSMR3 ~ 1, 
                                       TRUE ~ 0)
 
-aSMR_oper <- aSMR_grid %>% pivot_longer(cols=starts_with("aSMR"), values_to = "operability") %>% dplyr::select(-Areakm2)
-aSMR_oper <- st_intersection(aSMR_oper, aoi)
+aSMR_oper_sf <- aSMR_grid %>% pivot_longer(cols=starts_with("aSMR"), values_to = "operability") %>% dplyr::select(-Areakm2)
+aSMR_oper_sf <- st_intersection(aSMR_oper_sf, aoi)
+
+###--- creating grid (study area) meta data
+#  UTM Zone 10N, NAD83 (EPSG:26910)
+coord.scale=100
+buffer=10
+grid_coords <- st_centroid(aSMR_oper_sf %>% filter(name=="aSMR1"))
+grid_coords <- arrange(grid_coords, Id)
+grid_coords <- st_coordinates(grid_coords %>% st_transform(26910))
+
+gridXY <- aSMR_oper_sf %>% filter(name=="aSMR1") %>% dplyr::select(Id) %>% st_drop_geometry()
+gridXY <- cbind(gridXY, grid_coords)
+colnames (gridXY) <- c("grid.id","x","y")
+
+gridlocs <- as.matrix(gridXY[,c("x","y")])
+X <- gridlocs/coord.scale
+
+###--- create xlims and ylims of scaled coordinates, and area
+Xl <- min(X[,1] - buffer)
+X.scaled <- X[,1] - Xl
+
+Yl <- min(X[,2] - buffer)
+Y.scaled <- X[,2] - Yl
+
+xlims.scaled <- c(min(X.scaled)-buffer,max(X.scaled)+buffer); ylims.scaled <- c(min(Y.scaled)-buffer,max(Y.scaled)+buffer)
+
+areaha.scaled <- xlims.scaled[2]*ylims.scaled[2] # 82989.55 ha or 830 km2
+
+X2 <- as.matrix(cbind(X.scaled,Y.scaled))
 
 # need to figure out the plotting, or add the rows (longer) and facet wrap
 pal=pnw_palette("Winter",2, type = "discrete")
@@ -131,26 +156,85 @@ Cairo(file="out/aSMR_Operability.PNG",
       bg="white",
       dpi=300)
 ggplot()+
-  geom_sf(data = aSMR_oper, aes(fill=as.factor(operability)))+
+  geom_sf(data = aSMR_oper_sf, aes(fill=as.factor(operability)))+
   scale_fill_manual(values=unique(pal))+
   facet_wrap(~name)+
   theme(legend.title=element_blank())
 dev.off()
+
+## create operability matrix for SMR analysis
+aSMR_oper <- pivot_wider(aSMR_oper_sf, names_from = "name", values_from = "operability") %>% st_drop_geometry()
+aSMR_oper <- arrange(aSMR_oper, Id)
+aSMR_oper <- as.matrix(aSMR_oper[c("Id","aSMR1","aSMR2","aSMR3")])
+rownames(aSMR_oper) <- aSMR_oper[,1]
+aSMR_oper <- aSMR_oper[,2:4]
+write.csv(aSMR_oper, "data/aSMR_oper.csv")
+
+###########
+# telem data to cover aSMR survey period (2 March to 28 March 2022)
+telem <- read.csv("data/Collars_Sechelt.csv", stringsAsFactors = TRUE) %>% as_tibble() %>%
+  dplyr::select(Collar_ID, SCTS__UTC_, Latitude_d, Longitude_ ,Easting, Northing) %>%
+  rename(Date.Time.UTC = SCTS__UTC_, Latitude = Latitude_d, Longitude=Longitude_)
+
+###--- telem locations
+telem$Date.Time.UTC <- ymd_hms(telem$Date.Time.UTC, tz = "UTC")
+telem$Date.Time.PST <- with_tz(telem$Date.Time.UTC, tz)
+telem <- telem %>% mutate(Year = year(Date.Time.PST), Month = lubridate::month(Date.Time.PST, label = T), jDay = yday(Date.Time.PST))
+
+telem %>% group_by(Collar_ID) %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
+telem %>% summarise(min(Date.Time.PST), max(Date.Time.PST))
+# telem location data for Sechelt Peninsula from 2021-06-13 19:01:36 to 2022-06-01 10:19:55 
+
+telem_sf <- st_as_sf(telem %>% filter(!is.na(Longitude)), coords = c("Longitude", "Latitude"), crs=4326)
+telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
+telem_sf$Collar_ID <- as.factor(telem_sf$Collar_ID)
+
+telem_sf %>% summarise(min(Date.Time.PST), max(Date.Time.PST)) %>% st_drop_geometry()
+
+# jDay = 61 for March 2, jDay = 74 for March 15, jDay = 87 for March 28
+telem_aSMR <- telem_sf %>% filter(Year==2022, Month=="Mar")
+telem_aSMR <- telem_aSMR %>% filter(jDay %in% c(60,61,62, 73,74,75, 86,87,88)) # using date of survey plus a day on either side
+length(unique(telem_aSMR$Collar_ID)) # 13 active collars 
+telem_aSMR %>% count(Collar_ID) %>% st_drop_geometry()
+
+ggplot()+
+  geom_sf(data=aoi %>% st_transform(3005))+
+  geom_sf(data=telem_aSMR %>% st_transform(3005), aes(fill=Collar_ID, col=Collar_ID))
+
+active.collars <- sort(unique(telem_aSMR$Collar_ID))
+active.collars <- droplevels(active.collars)
+
+num.reps.collar <- telem_aSMR %>% count(Collar_ID) %>% dplyr::select(n) %>% st_drop_geometry()
+num.reps.collar <- as.numeric(num.reps.collar$n)
+# summary(num.reps.collar) between 1 and 17 fixes per animal, median = 15, mean = 12
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 1.00   10.00   15.00   12.23   16.00   17.00
+telem_aSMR %>% arrange(Collar_ID)
+locs <- as.data.frame(st_coordinates(telem_aSMR %>% arrange(Collar_ID) %>% st_transform(crs=26910))) # convert to NAD 83 UTM Zone 10 for consistency with trapping grid (m)
+colnames(locs) <- c("Xcoord.scaled","Ycoord.scaled")
+nlocs <- nrow(locs)
+
+coord.scale=100
+locs.scaled <- locs/coord.scale
+locs.scaled$Xcoord.scaled <- locs.scaled[,1] - Xl
+locs.scaled$Ycoord.scaled <- locs.scaled[,2] - Yl
+
+ind <- rep(1:length(num.reps.collar), times=num.reps.collar) #  marked individuals and various locations from each
 
 
 ###############################################################################
 # survey data
 aerialSMR1 <- read_excel(paste(aerialDIR,"Flight1/2022Mar2_SMR_Data.xlsx", sep="/"), 
                        sheet = "Data", range = "A1:T12", col_types = "text") %>% type_convert()
-aerialSMR1$SurveyNum <- "aSMR 1"
+aerialSMR1$SurveyNum <- "aSMR1"
 
 aerialSMR2 <- read_excel(paste(aerialDIR,"Flight2/2022Mar15_SMR_Data.xlsx", sep="/"), 
                          sheet = "Data", range = "A1:U13", col_types = "text") %>% type_convert()
-aerialSMR2$SurveyNum <- "aSMR 2"
+aerialSMR2$SurveyNum <- "aSMR2"
 
 aerialSMR3 <- read_excel(paste(aerialDIR,"Flight3/2022Mar28_SMR_Data.xlsx", sep="/"), 
                          sheet = "Data", range = "A1:U10", col_types = "text") %>% type_convert()
-aerialSMR3$SurveyNum <- "aSMR 3"
+aerialSMR3$SurveyNum <- "aSMR3"
 
 aerialSMR <- bind_rows(aerialSMR1 %>% dplyr::select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum),
                        aerialSMR2 %>% dplyr::select(`Elk Lat & Long`, `Group Size`, `Collar ID`, SurveyNum), 
@@ -180,15 +264,29 @@ aerialSMR$GrpSze <- case_when(aerialSMR$Collar_ID==42256 ~ ceiling(17/2),
                               aerialSMR$Collar_ID==42257 ~ floor(17/2),
                               TRUE~aerialSMR$GrpSze)
 
+# to  match with telem with individuals - for some reason no telem for 80333 - realise it is a mistake, should be 81333
+aerialSMR$Collar_ID <- case_when(aerialSMR$Collar_ID==80333 ~ 81333,
+                                 TRUE~aerialSMR$Collar_ID)
+
 obsSMR_sf <- st_as_sf(aerialSMR, coords=c("Longitude", "Latitude"), crs=4326)
+obsSMR_sf %>% group_by(SurveyNum) %>% summarise(mean(GrpSze), min(GrpSze), max(GrpSze), sum(GrpSze)) %>% st_drop_geometry()
+
+obsSMR_sf <- st_join(obsSMR_sf %>% st_transform(3005), aoi_aSMR_grid %>% st_transform(3005) %>% dplyr::select(Id))
+
 
 aerialSMR %>% filter(!is.na(Collar_ID))
 # 7 active collars seen during 3 surveys: 3 in Survey1, 1 in Survey2, and 4 in Survey3
-# 1 collar was seen in two surveys for a total of 8 collared observations
+# 1 (31541) collar was seen in two surveys for a total of 8 collared observations
 
-aSMRnum <- c("aSMR 2")
+telem_aSMR %>% filter(jDay == 87) %>% dplyr::select(Date.Time.PST, jDay) %>% st_drop_geometry()
+as.data.frame(telem_aSMR %>% filter(jDay %in% c(61, 74,87)) %>% arrange(jDay) %>% dplyr::select(Collar_ID, Date.Time.PST, jDay) %>% st_drop_geometry())
 
-Cairo(file="out/aSMR3_TransectsObs.PNG", 
+# jDay = 61 for March 2, jDay = 74 for March 15, jDay = 87 for March 28
+
+aSMRnum <- c("aSMR2")
+aSMRjDay <- c(73,74,75)
+
+Cairo(file="out/aSMR2_TransectsObs_CollarObs.PNG", 
       type="png",
       width=2000, 
       height=3000, 
@@ -196,23 +294,96 @@ Cairo(file="out/aSMR3_TransectsObs.PNG",
       bg="white",
       dpi=300)
 ggplot()+
-  geom_sf(data=aoi)+
-  geom_sf(data=aerialTransect %>% filter(Transect==aSMRnum)) +
-  geom_sf(data=obsSMR_sf %>% filter(SurveyNum==aSMRnum) %>% st_transform(26910)) +
-  geom_sf(data=obsSMR_sf %>% filter(SurveyNum==aSMRnum) %>% filter(!is.na(Collar_ID)) %>% st_transform(26910), col="red")+
-  ggtitle("Aerial SMR Survey 3 \nTransects and Observations")
+  geom_sf(data=aoi %>% st_transform(3005))+
+  geom_sf(data=aerialTransect %>% st_transform(3005) %>% filter(Transect==aSMRnum), col="darkgrey") +
+  geom_sf(data=telem_aSMR %>% st_transform(3005) %>% filter(jDay %in% aSMRjDay), aes(fill=Collar_ID, col=Collar_ID), cex=2)+
+  geom_sf(data=obsSMR_sf %>% st_transform(3005) %>% filter(SurveyNum==aSMRnum), fill="black", cex=2.8, pch=23) +
+  geom_sf(data=obsSMR_sf %>% st_transform(3005) %>% filter(SurveyNum==aSMRnum) %>% filter(!is.na(Collar_ID)), 
+          fill="red", cex=2.8, pch=23)+
+  ggtitle("Aerial SMR Survey 2 \nTransects and Observations")
 dev.off()
 
-aerialSMR %>% count(Collar_ID)
- 
-st_join(obsSMR_sf %>% st_transform(3005), aSMR_grid %>% st_transform(3005))
-as.data.frame(aerialSMR)
+###--- prepping obs data for input to SMR
+obsSMR_sf %>% filter(is.na(Id))
+aerial_dat <- obsSMR_sf %>% st_drop_geometry()
+grp_size <- aerial_dat %>% summarise(min = min(GrpSze), mean = mean(GrpSze), max = max(GrpSze), median = median(GrpSze))
 
-active.collars
-telem_sf %>% count(Collar_ID) %>% st_drop_geometry()
+ind.lookup <- as.data.frame(active.collars)
+colnames(ind.lookup) <- "active.collar"
+ind.lookup$ind <- rep(1:nrow(ind.lookup))
+ind.lookup$active.collar <- as.factor(ind.lookup$active.collar)
 
-# create lat and long for elk position ('Elk Lat & Long')
-# Subset to tibble with Latitude, Longitude, group size (`Group Size`) and collar ID (`Collar ID`)
+aerial_dat$active.collar <- as.factor(aerial_dat$Collar_ID)
+aerial_dat <- left_join(aerial_dat, ind.lookup)
+
+aerialSMR %>% count(Collar_ID) %>% ungroup()
+ind_dat <- aerial_dat %>% filter(!is.na(ind)) %>% dplyr::select(-CollarID, -Collar_ID, -active.collar) %>% arrange(ind, SurveyNum)
+# ind_dat %>% count(Id)
+# ind_dat %>% count(ind)
+
+ind_dat$rowID <- rownames(gridXY)[match(ind_dat$Id, gridXY$grid.id)]
+
+
+# dat$Yobs is a matrix nind:J:K
+# rows are the 9 inds, columns are the traps J, and different slices for each occasion
+n.marked = length(active.collars)
+Yobs_ind_dat <- ind_dat %>% group_by(rowID, ind) %>% count(SurveyNum) %>% arrange(SurveyNum)
+Yobs_ind_dat$Occ <- as.numeric(substr(Yobs_ind_dat$SurveyNum,5,5))
+
+K = 3 
+J = nrow(gridXY)
+
+# create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
+Yobs <- array(0L, c(n.marked,J,K))
+dim(Yobs)
+
+for(i in 1:nrow(Yobs_ind_dat)){
+  ind.value <- as.numeric(Yobs_ind_dat[i,c("ind")])
+  J.value <- as.numeric(Yobs_ind_dat[i,c("rowID")])
+  K.value <- as.numeric(Yobs_ind_dat[i,c("Occ")])
+  dtn.value <- as.numeric(Yobs_ind_dat[i,c("n")])
+  
+  Yobs[ind.value,J.value,K.value] <- dtn.value
+}
+
+# sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
+
+## Data on marked guys from resighting occasion
+M = 800
+yr.aug <- array(0L, c(M, J))
+y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
+class(y2d) <- "integer"
+
+yr.aug[1:n.marked,] <- y2d
+# dim(yr.aug)
+# dim(Yobs)
+# sum(yr.aug) # should be the same as sum(Yobs)
+
+n.tmp <- aerial_dat %>% group_by(Id) %>% count(SurveyNum)
+n.tmp$gridID <- rownames(gridXY)[match(n.tmp$Id, gridXY$grid.id)]
+n.tmp$Occ <- as.numeric(substr(n.tmp$SurveyNum,5,5))
+n.tmp2 <- n.tmp %>% ungroup() %>% dplyr::select(-SurveyNum) %>% arrange(gridID)
+
+# create an empty array with rows as # of individuals, columns as camera traps, and slices as Occasions
+n <- array(0L, c(J,K))
+dim(n)
+
+for(i in 1:nrow(n.tmp2)){
+  J.value <- as.numeric(n.tmp2[i,c("gridID")])
+  K.value <- as.numeric(n.tmp2[i,c("Occ")])
+  dtn.value <- as.numeric(n.tmp2[i,c("n")])
+  
+  n[J.value,K.value] <- dtn.value
+}
+
+sum(n.tmp2$n); sum(n); nrow(aerial_dat) # check they are all the same
+
+yr.obs <- rowSums(n) # removing k for faster processing
+
+
+aSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked, 
+                  J=J, effort=aSMR_oper, nlocs=nlocs, ind=ind, locs=locs.scaled,
+                  xlim=xlims.scaled, ylim=ylims.scaled, A=areaha.scaled)
 
 ################################################################################
 # ## For simulations
