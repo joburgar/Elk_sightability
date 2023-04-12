@@ -39,10 +39,10 @@ lapply(list.of.packages, require, character.only = TRUE)
 # Load study area #
 aoi_quad <- st_read(dsn="input", layer="Sechelt_quadrants")
 
-aoi <- aoi_quad %>% st_transform(3005) %>% st_buffer(400) %>% st_union() %>% st_sf()
+aoi <- aoi_quad %>% st_transform(3005) %>% st_buffer(500) %>% st_union() %>% st_sf()
 
 # create grid cells 600 x 600 m to emulate distance between transect lines (can see 300 m on either side)
-aoi_grid <- st_make_grid(st_bbox(aoi), cellsize=600, square=TRUE) #  grid for entire AOI (rectangle)
+aoi_grid <- st_make_grid(st_bbox(aoi), cellsize=1000, square=TRUE) #  grid for entire AOI (rectangle)
 # rm(aoi_grid)
 aSMR_grid = st_sf(geom = aoi_grid)
 aSMR_grid$Areakm2 <- st_area(aSMR_grid)*1e-6
@@ -141,7 +141,7 @@ Y.scaled <- X[,2] - Yl
 
 xlims.scaled <- c(min(X.scaled)-buffer,max(X.scaled)+buffer); ylims.scaled <- c(min(Y.scaled)-buffer,max(Y.scaled)+buffer)
 
-areaha.scaled <- xlims.scaled[2]*ylims.scaled[2] # 82989.55 ha or 830 km2
+areaha.scaled <- xlims.scaled[2]*ylims.scaled[2] # 86804.58 ha or 868 km2
 
 X2 <- as.matrix(cbind(X.scaled,Y.scaled))
 
@@ -166,7 +166,7 @@ dev.off()
 aSMR_oper <- pivot_wider(aSMR_oper_sf, names_from = "name", values_from = "operability") %>% st_drop_geometry()
 aSMR_oper <- arrange(aSMR_oper, Id)
 aSMR_oper <- as.matrix(aSMR_oper[c("Id","aSMR1","aSMR2","aSMR3")])
-rownames(aSMR_oper) <- aSMR_oper[,1]
+# rownames(aSMR_oper) <- aSMR_oper[,1]
 aSMR_oper <- aSMR_oper[,2:4]
 write.csv(aSMR_oper, "data/aSMR_oper.csv")
 
@@ -199,7 +199,8 @@ telem_aSMR %>% count(Collar_ID) %>% st_drop_geometry()
 
 ggplot()+
   geom_sf(data=aoi %>% st_transform(3005))+
-  geom_sf(data=telem_aSMR %>% st_transform(3005), aes(fill=Collar_ID, col=Collar_ID))
+  geom_sf(data=telem_aSMR %>% st_transform(3005), aes(fill=Collar_ID, col=Collar_ID))+
+  ggtitle("Active Elk Collars During Aerial Surveys")
 
 active.collars <- sort(unique(telem_aSMR$Collar_ID))
 active.collars <- droplevels(active.collars)
@@ -349,7 +350,7 @@ for(i in 1:nrow(Yobs_ind_dat)){
 # sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
 
 ## Data on marked guys from resighting occasion
-M = 800
+M = 200
 yr.aug <- array(0L, c(M, J))
 y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
 class(y2d) <- "integer"
@@ -381,10 +382,50 @@ sum(n.tmp2$n); sum(n); nrow(aerial_dat) # check they are all the same
 yr.obs <- rowSums(n) # removing k for faster processing
 
 
+eff <- rowSums(aSMR_oper)/K
+length(eff)
+
+length(yr.obs[yr.obs!=0])
+length(yr.obs)
+sum(yr.obs)
+
+
 aSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked, 
-                  J=J, effort=aSMR_oper, nlocs=nlocs, ind=ind, locs=locs.scaled,
+                  J=J, effort=eff, nlocs=nlocs, ind=ind, locs=locs.scaled,
                   xlim=xlims.scaled, ylim=ylims.scaled, A=areaha.scaled)
 
+###--- run aSMR
+
+M=200
+
+jd1 <- aSMR.data
+ji1 <- function() list(z=rep(1,M))
+jp1 <- c("psi", "lam0", "sigma", "N", "D")
+
+# run model - accounting for effort
+(start.time <- Sys.time())
+cl3 <- makeCluster(3)
+clusterExport(cl3, c("jd1","ji1","jp1","M"))
+
+aSMR_JAGS <- clusterEvalQ(cl3, {
+  library(rjags)
+  jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=1000)
+  jc1 <- coda.samples(jm1, jp1, n.iter=8000)
+  return(as.mcmc(jc1))
+})
+
+mc.aSMR_JAGS <- mcmc.list(aSMR_JAGS)
+
+(end.time <- Sys.time()) # 
+mc.aSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
+# Time difference of 475.9689 mins
+
+save("mc.aSMR_JAGS",file="out/mc.elk_eff_aSMR_8KIt.RData")
+# save("mc.aSMR_JAGS.ET",file="out/mc.elk_eff_aSMR_5KIt_map.ET.RData")
+stopCluster(cl3)
+
+summary(mc.aSMR_JAGS)
+plot(mc.aSMR_JAGS)
 ################################################################################
 # ## For simulations
 # ## Sechelt Peninsula 95% KDe = summer 31.1 +/- 16.1 and winter = 17 +/- 2
@@ -772,8 +813,8 @@ SCRraster <- function (Dn = Dn, traplocs = traplocs, buffer = buffer, crs = crs)
 #function to create output table for JAGS output
 get_JAGS_output <- function(filename){
   out <- filename
-  s <- summary(window(out, start = 8001))
-  gd <- gelman.diag(window(out, start = 4001),multivariate = FALSE)
+  s <- summary(window(out, start = 1001))
+  gd <- gelman.diag(window(out, start = 1001),multivariate = FALSE)
   output_table <- rbind(as.data.frame(t(s$statistics)),
                         as.data.frame(t(s$quantiles)),
                         as.data.frame(t(gd$psrf)))
@@ -944,7 +985,7 @@ stopCluster(cl3)
 
 ###############################################################
 ###--- view output
-mc.cSMR_JAGS.ET # 62 mins for 55 cams, M=400, 8000 IT
+mc.aSMR_JAGS.ET # 62 mins for 55 cams, M=400, 8000 IT
 
 options(scipen = 999)
 
@@ -965,8 +1006,16 @@ options(scipen = 999)
 ###--- output tables
 
 load("out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
-out <- mc.cSMR_JAGS
+out <-mc.aSMR_JAGS
 str(out)
+summary(out)
+options(scipen = 100)
+
+out_elk_aSMR_5KIT <- get_JAGS_output(out)
+write.csv(out_elk_aSMR_5KIT, "out/out_elk_aSMR_5KIT.csv")
+
+plot(out_elk_aSMR_5KIT)
+plot(out)
 
 out_elk_SmpPrd1_cSMR_8KIt_8KBIN <- get_JAGS_output(out)
 write.csv(out_elk_SmpPrd1_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd1.cSMR_8KIt_8KBIN.csv")
