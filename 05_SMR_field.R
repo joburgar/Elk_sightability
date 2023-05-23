@@ -350,7 +350,7 @@ for(i in 1:nrow(Yobs_ind_dat)){
 # sum(Yobs); sum(Yobs_ind_dat$n) # check to make sure the same
 
 ## Data on marked guys from resighting occasion
-M = 200
+M = 250
 yr.aug <- array(0L, c(M, J))
 y2d <- apply(Yobs,c(1,2),sum) # 2-d encounter history 'nind' x 'ntraps' # remove k for faster processing
 class(y2d) <- "integer"
@@ -396,11 +396,13 @@ aSMR.data <- list(M=M,y=yr.aug, n=yr.obs, x=X2, nMarked=n.marked,
 
 ###--- run aSMR
 
-M=200
+M=250
 
 jd1 <- aSMR.data
 ji1 <- function() list(z=rep(1,M))
-jp1 <- c("psi", "lam0", "sigma", "N", "D")
+# jp1 <- c("psi", "lam0", "sigma", "N", "D")
+jp1 <- c("psi", "lam0", "sigma", "N", "D", "s", "z")
+
 
 # run model - accounting for effort
 (start.time <- Sys.time())
@@ -410,17 +412,18 @@ clusterExport(cl3, c("jd1","ji1","jp1","M"))
 aSMR_JAGS <- clusterEvalQ(cl3, {
   library(rjags)
   jm1 <- jags.model("elk_cSMR_trapeff.jag", jd1, ji1, n.chains=1, n.adapt=1000)
-  jc1 <- coda.samples(jm1, jp1, n.iter=8000)
+  jc1 <- coda.samples(jm1, jp1, n.iter=9000)
   return(as.mcmc(jc1))
 })
+
 
 mc.aSMR_JAGS <- mcmc.list(aSMR_JAGS)
 
 (end.time <- Sys.time()) # 
 mc.aSMR_JAGS.ET <- difftime(end.time, start.time, units='mins')
-# Time difference of 475.9689 mins
+# Time difference of 475.9689 mins; 1708.4 mins for 9000 IT and M=250. Ouch.
 
-save("mc.aSMR_JAGS",file="out/mc.elk_eff_aSMR_8KIt.RData")
+save("mc.aSMR_JAGS",file="out/mc.elk_eff_aSMR_9KIt_map.RData")
 # save("mc.aSMR_JAGS.ET",file="out/mc.elk_eff_aSMR_5KIt_map.ET.RData")
 stopCluster(cl3)
 
@@ -712,19 +715,19 @@ spatial_density_obj.function <- function(out = out){
   out2 <-out[[2]]
   out3 <-out[[3]]
   
-  head(out1)
+  # str(out1)
   
-  Sxout1 <- out1[4001:8000,5:404]
-  Syout1 <- out1[4001:8000,405:804]
-  z1 <- out1[4001:8000, 806:1205]
+  Sxout1 <- out1[4001:9000,5:254]
+  Syout1 <- out1[4001:9000,255:504]
+  z1 <- out1[4001:9000, 506:755]
   
-  Sxout2 <- out2[4001:8000,5:404]
-  Syout2 <- out2[4001:8000,405:804]
-  z2 <- out2[4001:8000, 806:1205]
+  Sxout2 <- out2[4001:9000,5:254]
+  Syout2 <- out2[4001:9000,255:504]
+  z2 <- out2[4001:9000, 506:755]
   
-  Sxout3 <- out3[4001:8000,5:404]
-  Syout3 <- out3[4001:8000,405:804]
-  z3 <- out3[4001:8000, 806:1205]
+  Sxout3 <- out3[4001:9000,5:254]
+  Syout3 <- out3[4001:9000,255:504]
+  z3 <- out3[4001:9000, 506:755]
   
   obj1 <- list(Sx=rbind(Sxout1, Sxout2, Sxout3), Sy=rbind(Syout1,Syout2,Syout3), z=rbind(z1,z2,z3))
   
@@ -813,8 +816,8 @@ SCRraster <- function (Dn = Dn, traplocs = traplocs, buffer = buffer, crs = crs)
 #function to create output table for JAGS output
 get_JAGS_output <- function(filename){
   out <- filename
-  s <- summary(window(out, start = 1001))
-  gd <- gelman.diag(window(out, start = 1001),multivariate = FALSE)
+  s <- summary(window(out[,c("D","N","lam0","sigma","psi")], start = 4001))
+  gd <- gelman.diag(window(out[,c("D","N","lam0","sigma","psi")], start = 4001),multivariate = FALSE)
   output_table <- rbind(as.data.frame(t(s$statistics)),
                         as.data.frame(t(s$quantiles)),
                         as.data.frame(t(gd$psrf)))
@@ -987,32 +990,29 @@ stopCluster(cl3)
 ###--- view output
 mc.aSMR_JAGS.ET # 62 mins for 55 cams, M=400, 8000 IT
 
-options(scipen = 999)
+  summary(window(out[,c("D","lam0","sigma","psi")], start = 4001))
+  gelman.diag(window(out[,c("D","lam0","sigma","psi")], start = 4001), multivariate = F)
+  plot(window(out[,c("D","lam0","sigma","psi")], start = 1001))
 
-# out <- mc.cSMR_JAGS
-# summary(out)
-# plot(out)
-# summary(window(out, start = 4001))
-# # summary(window(out.eff,start = 1001))
-# # summary(window(out.eff.unS,start = 1001))
-# 
-# plot(window(out,start = 4001))
-# # plot(window(out.eff,start = 11001))
-# # plot(window(out.eff,start = 11001))
-# 
-# rejectionRate(window(out ,start = 4001))
+
 
 ######################################
 ###--- output tables
+load("out/mc.elk_eff_aSMR_9KIt_map.RData")
 
-load("out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
+# load("out/mc.elk_eff_aSMR_8KIt.RData")
+# load("out/mc.elk_SmpPrd2_eff_cSMR_8KIt.RData")
+
 out <-mc.aSMR_JAGS
 str(out)
 summary(out)
 options(scipen = 100)
 
-out_elk_aSMR_5KIT <- get_JAGS_output(out)
-write.csv(out_elk_aSMR_5KIT, "out/out_elk_aSMR_5KIT.csv")
+out_elk_aSMR_9KIT <- get_JAGS_output(out)
+write.csv(out_elk_aSMR_9KIT, "out/out_elk_aSMR_9KIT.csv")
+
+# out_elk_aSMR_5KIT <- get_JAGS_output(out)
+# write.csv(out_elk_aSMR_5KIT, "out/out_elk_aSMR_5KIT.csv")
 
 plot(out_elk_aSMR_5KIT)
 plot(out)
@@ -1029,13 +1029,15 @@ write.csv(out_elk_SmpPrd2_cSMR_8KIt_8KBIN, "out/out_elk_SmpPrd2.cSMR_8KIt_8BIN.c
 # all MCMC output is in 100 m units
 # if input coordinate system is in "100 m" then input scalein=1
 # so have as 1 if want in 100 m units
-load("out/mc.elk_SmpPrd1_eff_cSMR_8KIt_map.RData")
-out <- mc.cSMR_JAGS
-
+load("out/mc.elk_SmpPrd2_eff_cSMR_8KIt_map.RData")
+load("out/mc.elk_eff_aSMR_9KIt_map.RData")
+out <- mc.aSMR_JAGS
+str(out[[1]])
+head(out[[1]][506])
+head(out[[1]])
 SC_obj <- spatial_density_obj.function(out = out)
 str(SC_obj)
 
-str(cSMR_smp2)
 cam_coords <- st_coordinates(cam_sf %>% st_transform(26910))
 
 camXY <- cam_lcn %>% dplyr::select(station_id)
@@ -1052,10 +1054,10 @@ SC_map <- SCRdensity(SC_obj, nx=25, ny=25)
 str(SC_map)
 SC_raster <- SCRraster(Dn = SC_map$Dn, traplocs = traplocs, buffer = 2000, crs = c("+init=epsg:26910"))
 plot(flip(SC_raster$Dn_Traster, direction="y"))
-writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_SmpPrd1_eff_cSMR_8KIt_raster_diry.tif", overwrite=TRUE)
+writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_aSMR_9KIt_raster_diry.tif", overwrite=TRUE)
 writeRaster(flip(SC_raster$Dn_Traster, direction="y"),"out/elk_SmpPrd2_eff_cSMR_8KIt_raster_diry.tif", overwrite=TRUE)
 
-Cairo(file="out/elk_SmpPrd2_eff_cSMR_8KI_SpatialDensity.PNG", 
+Cairo(file="out/elk_aSMR_9KI_SpatialDensity.PNG", 
       type="png",
       width=2000, 
       height=1600, 
@@ -1063,7 +1065,7 @@ Cairo(file="out/elk_SmpPrd2_eff_cSMR_8KI_SpatialDensity.PNG",
       bg="white",
       dpi=300)
 plot(flip(SC_raster$Dn_Traster, direction="y"))
-points(traplocs, pch=20, cex=1)
+# points(traplocs, pch=20, cex=1)
 mtext(paste("Elk Winter 2022\nRealised Density Map",sep=""), side = 3, line = 1, cex=1.25)
 dev.off()
 
